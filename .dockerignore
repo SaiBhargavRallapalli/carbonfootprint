@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log
+.env
+coverage
+.git
+.gitignore
+*.test.js
+e2e
+playwright.config.js
+.eslintrc.json
+README.md

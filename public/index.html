@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="EcoSage — AI-powered carbon footprint tracker and coach for Indian users" />
+  <title>EcoSage — Carbon Footprint AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <header role="banner">
+    <div class="header-inner">
+      <div class="logo" aria-label="EcoSage home">
+        <span class="logo-icon" aria-hidden="true">🌿</span>
+        <span class="logo-text">EcoSage</span>
+      </div>
+      <p class="header-tagline">Your AI Carbon Footprint Coach</p>
+      <div id="demo-badge" class="demo-badge" hidden aria-live="polite">Demo Mode — Add API keys for full features</div>
+    </div>
+  </header>
+
+  <nav role="navigation" aria-label="Main navigation">
+    <div class="tab-bar" role="tablist" aria-label="App sections">
+      <button class="tab-btn active" role="tab" id="tab-dashboard" aria-selected="true" aria-controls="panel-dashboard" data-tab="dashboard">
+        <span class="tab-icon" aria-hidden="true">📊</span> Dashboard
+      </button>
+      <button class="tab-btn" role="tab" id="tab-log" aria-selected="false" aria-controls="panel-log" data-tab="log" tabindex="-1">
+        <span class="tab-icon" aria-hidden="true">➕</span> Log Activity
+      </button>
+      <button class="tab-btn" role="tab" id="tab-insights" aria-selected="false" aria-controls="panel-insights" data-tab="insights" tabindex="-1">
+        <span class="tab-icon" aria-hidden="true">📈</span> Insights
+      </button>
+      <button class="tab-btn" role="tab" id="tab-chat" aria-selected="false" aria-controls="panel-chat" data-tab="chat" tabindex="-1">
+        <span class="tab-icon" aria-hidden="true">🤖</span> AI Assistant
+      </button>
+      <button class="tab-btn" role="tab" id="tab-actions" aria-selected="false" aria-controls="panel-actions" data-tab="actions" tabindex="-1">
+        <span class="tab-icon" aria-hidden="true">✅</span> Actions
+      </button>
+    </div>
+  </nav>
+
+  <main id="main-content" role="main">
+
+    <!-- DASHBOARD TAB -->
+    <section id="panel-dashboard" role="tabpanel" aria-labelledby="tab-dashboard" class="panel active">
+      <div class="dashboard-grid">
+        <div class="card score-card">
+          <h2>Monthly Carbon Score</h2>
+          <div class="score-gauge" aria-label="Carbon score gauge">
+            <canvas id="gauge-canvas" width="220" height="220" aria-hidden="true"></canvas>
+            <div class="gauge-center">
+              <span id="gauge-value" class="gauge-number" aria-live="polite">—</span>
+              <span class="gauge-unit">kg CO₂e</span>
+            </div>
+          </div>
+          <div id="score-rating" class="score-rating" aria-live="polite"></div>
+          <div class="avg-compare">
+            <span>Indian avg: <strong>158 kg</strong></span>
+            <span>1.5°C target: <strong>208 kg</strong></span>
+          </div>
+        </div>
+
+        <div class="card breakdown-card">
+          <h2>Category Breakdown</h2>
+          <div class="chart-wrapper">
+            <canvas id="breakdown-chart" aria-label="Doughnut chart showing CO2 breakdown by category"></canvas>
+          </div>
+          <div id="breakdown-legend" class="legend" aria-live="polite"></div>
+        </div>
+
+        <div class="card tips-card">
+          <h2>AI Tips This Week</h2>
+          <ul id="tips-list" class="tips-list" aria-live="polite">
+            <li class="tips-loading">Loading personalised tips…</li>
+          </ul>
+        </div>
+
+        <div class="card recent-card">
+          <h2>Recent Activities</h2>
+          <ul id="recent-list" class="recent-list" aria-live="polite">
+            <li class="muted">No activities logged yet. Start tracking below!</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOG ACTIVITY TAB -->
+    <section id="panel-log" role="tabpanel" aria-labelledby="tab-log" class="panel" hidden>
+      <div class="log-container">
+        <h2>Log an Activity</h2>
+        <form id="log-form" novalidate>
+          <div class="form-row">
+            <label for="log-category">Category</label>
+            <select id="log-category" name="category" required aria-required="true">
+              <option value="">— Select category —</option>
+              <option value="transport">🚗 Transport</option>
+              <option value="energy">⚡ Home Energy</option>
+              <option value="food">🍽️ Food</option>
+              <option value="shopping">🛍️ Shopping</option>
+              <option value="waste">♻️ Waste</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <label for="log-type">Activity Type</label>
+            <select id="log-type" name="type" required aria-required="true" disabled>
+              <option value="">— Select category first —</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <label for="log-quantity">
+              <span id="quantity-label">Quantity</span>
+              <span id="quantity-unit" class="unit-badge" aria-live="polite"></span>
+            </label>
+            <input type="number" id="log-quantity" name="quantity" min="0" step="0.01"
+                   placeholder="e.g. 15" required aria-required="true" />
+          </div>
+
+          <div id="co2-preview" class="co2-preview" hidden aria-live="polite"></div>
+
+          <button type="submit" id="log-submit" class="btn-primary">
+            Log Activity
+          </button>
+        </form>
+
+        <div id="log-feedback" class="log-feedback" aria-live="assertive" aria-atomic="true"></div>
+      </div>
+    </section>
+
+    <!-- INSIGHTS TAB -->
+    <section id="panel-insights" role="tabpanel" aria-labelledby="tab-insights" class="panel" hidden>
+      <div class="insights-container">
+        <div class="period-selector">
+          <label for="period-select">Show data for</label>
+          <select id="period-select">
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+        </div>
+
+        <div class="insights-grid">
+          <div class="card">
+            <h2>Daily Trend</h2>
+            <div class="chart-wrapper">
+              <canvas id="trend-chart" aria-label="Line chart showing daily CO2 emissions over time"></canvas>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>vs. Benchmarks</h2>
+            <div class="chart-wrapper">
+              <canvas id="compare-chart" aria-label="Bar chart comparing your footprint to Indian and global averages"></canvas>
+            </div>
+          </div>
+
+          <div class="card stats-card">
+            <h2>Summary</h2>
+            <dl id="stats-list" class="stats-list" aria-live="polite">
+              <div class="stat-row"><dt>Total (period)</dt><dd id="stat-total">—</dd></div>
+              <div class="stat-row"><dt>Monthly equivalent</dt><dd id="stat-monthly">—</dd></div>
+              <div class="stat-row"><dt>vs. Indian average</dt><dd id="stat-india">—</dd></div>
+              <div class="stat-row"><dt>Biggest source</dt><dd id="stat-top">—</dd></div>
+              <div class="stat-row"><dt>Activities logged</dt><dd id="stat-count">—</dd></div>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI ASSISTANT TAB -->
+    <section id="panel-chat" role="tabpanel" aria-labelledby="tab-chat" class="panel" hidden>
+      <div class="chat-container">
+        <div id="chat-messages" class="chat-messages" aria-live="polite" aria-label="Chat conversation">
+          <div class="message bot-message">
+            <div class="message-bubble">
+              Hi! I'm EcoSage 🌿 I can see your carbon footprint data and give you personalised advice. What would you like to know?
+            </div>
+          </div>
+        </div>
+        <form id="chat-form" class="chat-form" novalidate>
+          <label for="chat-input" class="sr-only">Type your message</label>
+          <input type="text" id="chat-input" placeholder="Ask me about your carbon footprint…"
+                 autocomplete="off" maxlength="2000" />
+          <button type="submit" class="btn-primary" id="chat-send" aria-label="Send message">Send</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ACTIONS TAB -->
+    <section id="panel-actions" role="tabpanel" aria-labelledby="tab-actions" class="panel" hidden>
+      <div class="actions-container">
+        <h2>Recommended Actions</h2>
+        <div class="filter-row">
+          <label for="action-filter">Filter by category:</label>
+          <select id="action-filter">
+            <option value="">All categories</option>
+            <option value="transport">Transport</option>
+            <option value="energy">Energy</option>
+            <option value="food">Food</option>
+            <option value="shopping">Shopping</option>
+            <option value="waste">Waste</option>
+          </select>
+        </div>
+        <ul id="actions-list" class="actions-list" aria-live="polite"></ul>
+      </div>
+    </section>
+
+  </main>
+
+  <footer role="contentinfo">
+    <p>EcoSage · Built for PromptWars 2026 · India-specific emission factors (CEA 2024, IPCC AR6)</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="app.js" type="module"></script>
+</body>
+</html>
