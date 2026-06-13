@@ -1,7 +1,8 @@
 import { AVERAGES } from '../data/carbonData';
 import type { CarbonProfile, GeminiContent } from '../types';
 
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+const GEMINI_MODEL   = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash-latest';
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 const DEMO_RESPONSE  = "I'm EcoSage, your AI carbon coach! (Running in demo mode — add your GEMINI_API_KEY to enable full AI responses.) Ask me anything about your carbon footprint, and I'll help you reduce it with personalised, data-driven advice.";
 
 export function buildCarbonSystemPrompt(profile: Partial<CarbonProfile>): string {
@@ -68,9 +69,9 @@ export async function chat(
     ],
   };
 
-  const res = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+  const res = await fetch(GEMINI_API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify(body),
   });
 
@@ -106,9 +107,9 @@ export async function generateTips(profile: Partial<CarbonProfile>): Promise<str
     generationConfig: { temperature: 0.5, maxOutputTokens: 256 },
   };
 
-  const res = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+  const res = await fetch(GEMINI_API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify(body),
   });
 
