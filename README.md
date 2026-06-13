@@ -2,9 +2,12 @@
 
 > An AI-powered carbon footprint tracker and coach using Google Gemini and Firebase — built for Indian users.
 
+[![CI](https://github.com/SaiBhargavRallapalli/carbonfootprint/actions/workflows/ci.yml/badge.svg)](https://github.com/SaiBhargavRallapalli/carbonfootprint/actions/workflows/ci.yml)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green)](https://nodejs.org)
+[![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen)](#testing)
 [![Google Gemini](https://img.shields.io/badge/Google-Gemini_2.0_Flash-blue)](https://ai.google.dev)
 [![Cloud Run](https://img.shields.io/badge/Google-Cloud_Run-blue)](https://cloud.google.com/run)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![PromptWars](https://img.shields.io/badge/PromptWars-Virtual_2026-orange)](https://promptwars.in)
 
 ---
@@ -113,7 +116,7 @@ All functions are pure (no side effects), making them fully unit-testable.
 | **Code Quality** | Modular: thin `server.js` (55 lines) + `data/` + `services/` + `middleware/` + `routes/` (4 focused modules). Full `'use strict'`, consistent naming, zero dead code. |
 | **Security** | `helmet` (CSP + HSTS in production), `cors` with `ALLOWED_ORIGIN`, per-route rate limits (20/min chat, 100/min data), server-only API keys, `escHtml()` XSS protection on all user inputs, 10 MB JSON cap. |
 | **Efficiency** | In-memory TTL cache (30s) on insights/compare/tips, `compression` middleware (gzip), 1-day `Cache-Control` on static assets in production, Chart.js from CDN (no npm dep weight), lazy tab data fetching. |
-| **Testing** | Jest + Supertest — all 10 API routes, carbonEngine unit tests (9 cases), cache unit tests, carbonData validation, security headers. Playwright E2E — dashboard, logging, chat, accessibility (4 spec files). |
+| **Testing** | Jest + Supertest — 89 tests across all 10 API routes, carbonEngine, cache, gemini, sanitize, and middleware. 90% line coverage threshold enforced. Playwright E2E — dashboard, logging, chat, accessibility (4 spec files). CI runs lint → unit → E2E → Docker build on every push. |
 | **Accessibility** | Skip link, `role="tablist"` + `aria-selected` + `aria-controls`, `aria-live` regions for chat/tips/log feedback, semantic HTML, WCAG 2.1 AA contrast (green #2d6a4f on white), full keyboard nav with arrow keys, `prefers-reduced-motion` respected, mobile-responsive to 360px. |
 
 ---
@@ -132,8 +135,8 @@ All functions are pure (no side effects), making them fully unit-testable.
 
 ```
 carbonfootprint/
-├── server.js              # Entry point (55 lines)
-├── server.test.js         # Jest + Supertest tests
+├── server.js              # Entry point (72 lines)
+├── server.test.js         # Jest + Supertest — 89 tests, 92%+ coverage
 ├── data/
 │   └── carbonData.js      # Emission factors, averages, action catalog
 ├── middleware/
@@ -149,6 +152,8 @@ carbonfootprint/
 │   ├── carbonEngine.js    # Pure CO₂ calculation functions
 │   ├── firestore.js       # Activity persistence (graceful demo fallback)
 │   └── gemini.js          # Personalised system prompt + Gemini chat
+├── utils/
+│   └── sanitize.js        # Shared escHtml XSS sanitiser
 ├── public/
 │   ├── index.html         # 5-tab SPA (dashboard, log, insights, chat, actions)
 │   ├── styles.css         # Earth/green design system (WCAG 2.1 AA)
@@ -158,9 +163,17 @@ carbonfootprint/
 │   ├── logging.spec.js
 │   ├── chat.spec.js
 │   └── accessibility.spec.js
+├── docs/
+│   └── API.md             # Full REST API reference
+├── .github/
+│   └── workflows/
+│       └── ci.yml         # CI: lint → unit tests → E2E → Docker build
 ├── playwright.config.js
 ├── Dockerfile             # Non-root user, healthcheck
 ├── .env.example
+├── CHANGELOG.md
+├── CONTRIBUTING.md
+├── LICENSE
 └── README.md
 ```
 

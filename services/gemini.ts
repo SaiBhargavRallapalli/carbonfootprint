@@ -1,16 +1,11 @@
-'use strict';
-
-const { AVERAGES } = require('../data/carbonData');
+import { AVERAGES } from '../data/carbonData';
+import type { CarbonProfile, GeminiContent } from '../types';
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-const DEMO_RESPONSE  = "I'm EcoSage, your AI carbon coach! (Running in demo mode — add your GEMINI_API_KEY to enable full AI responses.) Ask me anything about your carbon footprint, and I'll help you reduce it with personalized, data-driven advice.";
+const DEMO_RESPONSE  = "I'm EcoSage, your AI carbon coach! (Running in demo mode — add your GEMINI_API_KEY to enable full AI responses.) Ask me anything about your carbon footprint, and I'll help you reduce it with personalised, data-driven advice.";
 
-/**
- * Build the system instruction that injects the user's carbon profile into every Gemini call.
- * @param {{ totals: Object, grandTotal: number, topCat: string, recentActivities: Array }} profile
- */
-function buildCarbonSystemPrompt(profile) {
-  const { totals = {}, grandTotal = 0, topCat = 'unknown', recentActivities = [] } = profile;
+export function buildCarbonSystemPrompt(profile: Partial<CarbonProfile>): string {
+  const { totals = { transport: 0, energy: 0, food: 0, shopping: 0, waste: 0 }, grandTotal = 0, topCat = 'unknown', recentActivities = [] } = profile;
   const indiaDiff = grandTotal - AVERAGES.india_monthly;
   const diffLabel = indiaDiff >= 0
     ? `${indiaDiff.toFixed(1)} kg ABOVE`
@@ -47,20 +42,16 @@ INSTRUCTIONS:
 8. Do NOT discuss politics, religion, or anything outside carbon/sustainability.`;
 }
 
-/**
- * Send a chat turn to Gemini and return the text response.
- * @param {string} userMessage
- * @param {Array<{ role: 'user'|'model', parts: [{text: string}] }>} history - prior conversation turns
- * @param {Object} profile - user's carbon profile for system prompt injection
- * @returns {Promise<string>}
- */
-async function chat(userMessage, history = [], profile = {}) {
+export async function chat(
+  userMessage: string,
+  history: GeminiContent[] = [],
+  profile: Partial<CarbonProfile> = {},
+): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return DEMO_RESPONSE;
 
   const systemInstruction = buildCarbonSystemPrompt(profile);
-
-  const contents = [
+  const contents: GeminiContent[] = [
     ...history,
     { role: 'user', parts: [{ text: userMessage }] },
   ];
@@ -68,10 +59,7 @@ async function chat(userMessage, history = [], profile = {}) {
   const body = {
     system_instruction: { parts: [{ text: systemInstruction }] },
     contents,
-    generationConfig: {
-      temperature: 0.7,
-      maxOutputTokens: 512,
-    },
+    generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
     safetySettings: [
       { category: 'HARM_CATEGORY_HARASSMENT',        threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
       { category: 'HARM_CATEGORY_HATE_SPEECH',       threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
@@ -81,9 +69,9 @@ async function chat(userMessage, history = [], profile = {}) {
   };
 
   const res = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-    method:  'POST',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(body),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -91,18 +79,15 @@ async function chat(userMessage, history = [], profile = {}) {
     throw new Error(`Gemini API error ${res.status}: ${err}`);
   }
 
-  const data = await res.json();
+  const data = await res.json() as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error('Empty response from Gemini');
   return text.trim();
 }
 
-/**
- * Generate 3 personalised weekly tips based on the user's top emission category.
- * @param {Object} profile
- * @returns {Promise<string[]>}
- */
-async function generateTips(profile) {
+export async function generateTips(profile: Partial<CarbonProfile>): Promise<string[]> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return [
@@ -122,21 +107,21 @@ async function generateTips(profile) {
   };
 
   const res = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-    method:  'POST',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(body),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) throw new Error(`Gemini tips error ${res.status}`);
 
-  const data = await res.json();
+  const data = await res.json() as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
   const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]';
   const cleaned = raw.replace(/```json|```/g, '').trim();
   try {
-    const tips = JSON.parse(cleaned);
-    if (Array.isArray(tips) && tips.length > 0) return tips.slice(0, 3);
+    const tips = JSON.parse(cleaned) as unknown[];
+    if (Array.isArray(tips) && tips.length > 0) return (tips as string[]).slice(0, 3);
   } catch (_) { /* fall through */ }
-  return [cleaned]; // return raw text as single tip if JSON parse fails
+  return [cleaned];
 }
-
-module.exports = { chat, generateTips, buildCarbonSystemPrompt };

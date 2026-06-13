@@ -2,17 +2,19 @@
   "name": "ecosage",
   "version": "1.0.0",
   "description": "AI-powered carbon footprint tracker and coach using Google Gemini and Firebase",
-  "main": "server.js",
+  "main": "dist/server.js",
   "engines": {
     "node": ">=18.0.0"
   },
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "build": "tsc --project tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "ts-node server.ts",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "test": "jest --coverage",
     "test:e2e": "playwright test",
-    "test:all": "npm run lint && npm test && npm run test:e2e"
+    "test:all": "npm run lint && npm run typecheck && npm test && npm run test:e2e"
   },
   "dependencies": {
     "compression": "^1.7.4",
@@ -25,26 +27,52 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.44.0",
+    "@types/compression": "^1.8.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.25",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.9.3",
+    "@types/supertest": "^7.2.0",
+    "@typescript-eslint/eslint-plugin": "^8.61.0",
+    "@typescript-eslint/parser": "^8.61.0",
     "eslint": "^9.3.0",
     "jest": "^29.7.0",
     "nodemon": "^3.1.0",
-    "supertest": "^7.0.0"
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.4.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   },
   "jest": {
+    "preset": "ts-jest",
     "testEnvironment": "node",
+    "coverageProvider": "v8",
+    "transform": {
+      "^.+\\.tsx?$": ["ts-jest", { "tsconfig": "tsconfig.jest.json", "isolatedModules": true }]
+    },
     "testTimeout": 10000,
-    "testMatch": ["**/*.test.js"],
-    "testPathIgnorePatterns": ["/node_modules/", "/e2e/"],
+    "testMatch": [
+      "**/*.test.ts",
+      "!**/e2e/**"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/e2e/",
+      "/dist/"
+    ],
     "collectCoverageFrom": [
-      "server.js",
-      "routes/**/*.js",
-      "services/**/*.js",
-      "middleware/**/*.js",
-      "data/**/*.js"
+      "server.ts",
+      "routes/**/*.ts",
+      "services/**/*.ts",
+      "middleware/**/*.ts",
+      "data/**/*.ts",
+      "utils/**/*.ts"
     ],
     "coverageThreshold": {
       "global": {
-        "lines": 85
+        "lines": 85,
+        "functions": 75,
+        "branches": 83
       }
     }
   }

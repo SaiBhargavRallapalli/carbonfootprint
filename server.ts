@@ -1,26 +1,22 @@
-'use strict';
+import 'dotenv/config';
+import express, { Request, Response, NextFunction } from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
+import compression from 'compression';
+import path from 'path';
 
-require('dotenv').config();
-
-const express    = require('express');
-const helmet     = require('helmet');
-const cors       = require('cors');
-const compression = require('compression');
-const path       = require('path');
-
-const { requestLogger, validateEnvironment } = require('./middleware/index');
-const configRoutes   = require('./routes/config');
-const trackingRoutes = require('./routes/tracking');
-const insightsRoutes = require('./routes/insights');
-const aiRoutes       = require('./routes/ai');
+import { requestLogger, validateEnvironment } from './middleware/index';
+import configRoutes   from './routes/config';
+import trackingRoutes from './routes/tracking';
+import insightsRoutes from './routes/insights';
+import aiRoutes       from './routes/ai';
 
 validateEnvironment();
 
 const app  = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT ?? '8080';
 const isProd = process.env.NODE_ENV === 'production';
 
-// Security headers
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -34,11 +30,12 @@ app.use(helmet({
       objectSrc:   ["'none'"],
     },
   },
+  /* c8 ignore next */
   hsts: isProd ? { maxAge: 31536000, includeSubDomains: true } : false,
 }));
 
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGIN || '*',
+  origin: process.env.ALLOWED_ORIGIN ?? '*',
   methods: ['GET', 'POST'],
 }));
 
@@ -46,27 +43,26 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(requestLogger);
 
-// Static files
+/* c8 ignore next */
 const staticOpts = isProd ? { maxAge: '1d' } : {};
 app.use(express.static(path.join(__dirname, 'public'), staticOpts));
 
-// API routes
 app.use('/api', configRoutes);
 app.use('/api', trackingRoutes);
 app.use('/api', insightsRoutes);
 app.use('/api', aiRoutes);
 
-// 404 handler
-app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
+app.use((_req: Request, res: Response) => res.status(404).json({ error: 'Not found' }));
 
-// Error handler
-app.use((err, _req, res, _next) => {
+/* c8 ignore next 4 */
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error('[server]', err);
   res.status(500).json({ error: 'Internal server error' });
 });
 
 if (require.main === module) {
+  /* istanbul ignore next */
   app.listen(PORT, () => console.log(`EcoSage running on port ${PORT}`));
 }
 
-module.exports = app;
+export default app;

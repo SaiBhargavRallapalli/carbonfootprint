@@ -1,9 +1,6 @@
-'use strict';
+import type { Request, Response, NextFunction } from 'express';
 
-/**
- * Structured request logger — prints method, path, status, and duration.
- */
-function requestLogger(req, res, next) {
+export function requestLogger(req: Request, res: Response, next: NextFunction): void {
   const start = Date.now();
   res.on('finish', () => {
     const ms = Date.now() - start;
@@ -13,16 +10,10 @@ function requestLogger(req, res, next) {
   next();
 }
 
-/**
- * Validates that required environment variables are present.
- * Warns — does not crash — so the app runs in demo mode without API keys.
- */
-function validateEnvironment() {
+export function validateEnvironment(): void {
   const required = ['GEMINI_API_KEY', 'FIREBASE_PROJECT_ID'];
   const missing  = required.filter(k => !process.env[k]);
   if (missing.length) {
     console.warn(`[ENV] Missing optional env vars (demo mode active): ${missing.join(', ')}`);
   }
 }
-
-module.exports = { requestLogger, validateEnvironment };
