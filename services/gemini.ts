@@ -118,9 +118,20 @@ export async function generateTips(profile: Partial<CarbonProfile>): Promise<str
   const data = await res.json() as {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
   };
-  const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]';
+  const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  // Strip markdown fences then try a direct parse; fall back to extracting the first [...] block
   const cleaned = raw.replace(/```json|```/g, '').trim();
-  const tips = JSON.parse(cleaned) as unknown[];
-  if (!Array.isArray(tips) || tips.length === 0) throw new Error('Invalid tips response from Gemini');
-  return (tips as string[]).slice(0, 3);
+  const tryParse = (s: string): string[] | null => {
+    try {
+      const parsed = JSON.parse(s) as unknown;
+      if (Array.isArray(parsed) && parsed.length > 0) return (parsed as string[]).slice(0, 3);
+    } catch { /* continue */ }
+    return null;
+  };
+  const direct = tryParse(cleaned);
+  if (direct) return direct;
+  const match = cleaned.match(/\[[\s\S]*?\]/);
+  const fromMatch = match ? tryParse(match[0]) : null;
+  if (fromMatch) return fromMatch;
+  throw new Error('Could not extract tips array from Gemini response');
 }

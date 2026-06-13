@@ -740,7 +740,7 @@ describe('gemini', () => {
 
     it('throws when Gemini returns unparseable JSON', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'not valid json' }] } }] }) }) as typeof fetch;
-      await expect(generateTips({})).rejects.toThrow(SyntaxError);
+      await expect(generateTips({})).rejects.toThrow('Could not extract tips array from Gemini response');
     });
 
     it('returns demo tips when no API key', async () => {
@@ -757,7 +757,7 @@ describe('gemini', () => {
 
     it('throws when Gemini returns an empty array', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '[]' }] } }] }) }) as typeof fetch;
-      await expect(generateTips({})).rejects.toThrow('Invalid tips response from Gemini');
+      await expect(generateTips({})).rejects.toThrow('Could not extract tips array from Gemini response');
     });
   });
 
