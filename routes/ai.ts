@@ -5,7 +5,7 @@ import { aggregateByCategory, topCategory } from '../services/carbonEngine';
 import * as cache from '../services/cache';
 import { chatLimiter, apiLimiter } from '../middleware/rateLimiters';
 import { escHtml } from '../utils/sanitize';
-import type { CarbonProfile } from '../types';
+import type { CarbonProfile, GeminiContent } from '../types';
 
 const router = Router();
 
@@ -36,7 +36,12 @@ router.post('/chat', chatLimiter, async (req, res) => {
     }
 
     const safeMessage = escHtml(message.trim());
-    const safeHistory = Array.isArray(history) ? history.slice(-10) : [];
+    const safeHistory: GeminiContent[] = Array.isArray(history)
+      ? history.slice(-10).filter((h): h is GeminiContent =>
+          typeof h === 'object' && h !== null &&
+          ((h as GeminiContent).role === 'user' || (h as GeminiContent).role === 'model') &&
+          Array.isArray((h as GeminiContent).parts))
+      : [];
     const profile = await buildProfile(escHtml(sessionId));
     const reply = await chat(safeMessage, safeHistory, profile);
 

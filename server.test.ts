@@ -195,11 +195,27 @@ describe('POST /api/log', () => {
   });
 
   it('accepts custom timestamp in body', async () => {
-    const ts = new Date('2024-01-15').toISOString();
+    const ts = new Date(Date.now() - 7 * 86400000).toISOString();
     const res = await request(app).post('/api/log')
       .send({ sessionId: 'test-session', category: 'transport', type: 'petrol_car', quantity: 5, timestamp: ts });
     expect(res.status).toBe(201);
     expect(res.body.co2).toBeCloseTo(0.855);
+  });
+
+  it('rejects timestamp too far in the past', async () => {
+    const ts = new Date('2020-01-01').toISOString();
+    const res = await request(app).post('/api/log')
+      .send({ sessionId: 'test-session', category: 'transport', type: 'petrol_car', quantity: 5, timestamp: ts });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/timestamp/i);
+  });
+
+  it('rejects timestamp in the future', async () => {
+    const ts = new Date(Date.now() + 2 * 60000).toISOString();
+    const res = await request(app).post('/api/log')
+      .send({ sessionId: 'test-session', category: 'transport', type: 'petrol_car', quantity: 5, timestamp: ts });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/timestamp/i);
   });
 
   it('returns 500 when logActivity throws unexpectedly', async () => {
@@ -603,9 +619,8 @@ describe('carbonEngine', () => {
       expect(topCategory({ transport: 50, energy: 10, food: 5, shopping: 20, waste: 1 })).toBe('transport');
     });
 
-    it('handles all-zero totals', () => {
-      expect(['transport', 'energy', 'food', 'shopping', 'waste'])
-        .toContain(topCategory({ transport: 0, energy: 0, food: 0, shopping: 0, waste: 0 }));
+    it('returns none for all-zero totals', () => {
+      expect(topCategory({ transport: 0, energy: 0, food: 0, shopping: 0, waste: 0 })).toBe('none');
     });
   });
 });
@@ -723,9 +738,9 @@ describe('gemini', () => {
       expect(tips[0]).toBe('Tip one');
     });
 
-    it('returns raw text when JSON parse fails', async () => {
+    it('throws when Gemini returns unparseable JSON', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'not valid json' }] } }] }) }) as typeof fetch;
-      expect(Array.isArray(await generateTips({}))).toBe(true);
+      await expect(generateTips({})).rejects.toThrow(SyntaxError);
     });
 
     it('returns demo tips when no API key', async () => {
@@ -740,10 +755,9 @@ describe('gemini', () => {
       await expect(generateTips({})).rejects.toThrow('500');
     });
 
-    it('falls through when JSON parsed as empty array', async () => {
+    it('throws when Gemini returns an empty array', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '[]' }] } }] }) }) as typeof fetch;
-      const tips = await generateTips({});
-      expect(Array.isArray(tips)).toBe(true);
+      await expect(generateTips({})).rejects.toThrow('Invalid tips response from Gemini');
     });
   });
 

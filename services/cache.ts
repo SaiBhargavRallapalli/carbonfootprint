@@ -20,6 +20,12 @@ export function del(key: string): void {
   store.delete(key);
 }
 
+export function delByPrefix(prefix: string): void {
+  for (const key of store.keys()) {
+    if (key.startsWith(prefix)) store.delete(key);
+  }
+}
+
 export function clear(): void {
   store.clear();
 }

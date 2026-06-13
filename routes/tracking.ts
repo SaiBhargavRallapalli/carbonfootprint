@@ -31,6 +31,16 @@ router.post('/log', apiLimiter, async (req, res) => {
     const { co2, unit, label } = calculateCO2(String(category), String(type), qty);
     const safeLabel = escHtml(label);
 
+    let ts = Date.now();
+    if (timestamp !== undefined) {
+      const parsed = typeof timestamp === 'number' ? timestamp : new Date(String(timestamp)).getTime();
+      const now = Date.now();
+      if (!isFinite(parsed) || parsed > now + 60_000 || parsed < now - 365 * 86_400_000) {
+        return res.status(400).json({ error: 'timestamp must be within the past year and not in the future' });
+      }
+      ts = parsed;
+    }
+
     const activity = {
       category: escHtml(category) as import('../types').Category,
       type:     escHtml(type),
@@ -38,13 +48,14 @@ router.post('/log', apiLimiter, async (req, res) => {
       co2,
       unit,
       label:    safeLabel,
-      timestamp: timestamp ? new Date(String(timestamp)).getTime() : Date.now(),
+      timestamp: ts,
     };
 
-    const result = await logActivity(escHtml(sessionId), activity);
+    const safeSid = escHtml(sessionId);
+    const result = await logActivity(safeSid, activity);
 
-    cache.del(`insights:${sessionId}`);
-    cache.del(`compare:${sessionId}`);
+    cache.delByPrefix(`insights:${safeSid}:`);
+    cache.delByPrefix(`compare:${safeSid}:`);
 
     return res.status(201).json({ id: result.id, co2, label: safeLabel, unit });
   } catch (err) {

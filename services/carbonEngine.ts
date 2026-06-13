@@ -51,5 +51,7 @@ export function compareToAverages(monthlyKg: number): ComparisonResult {
 }
 
 export function topCategory(totals: CategoryTotals): string {
-  return Object.entries(totals).sort((a, b) => b[1] - a[1])[0][0];
+  const entries = Object.entries(totals).filter(([, v]) => v > 0);
+  if (entries.length === 0) return 'none';
+  return entries.sort((a, b) => b[1] - a[1])[0][0];
 }

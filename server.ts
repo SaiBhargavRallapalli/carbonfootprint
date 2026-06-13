@@ -45,7 +45,7 @@ app.use(requestLogger);
 
 /* c8 ignore next */
 const staticOpts = isProd ? { maxAge: '1d' } : {};
-app.use(express.static(path.join(__dirname, 'public'), staticOpts));
+app.use(express.static(path.join(__dirname, '..', 'public'), staticOpts));
 
 app.use('/api', configRoutes);
 app.use('/api', trackingRoutes);

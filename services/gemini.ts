@@ -119,9 +119,7 @@ export async function generateTips(profile: Partial<CarbonProfile>): Promise<str
   };
   const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]';
   const cleaned = raw.replace(/```json|```/g, '').trim();
-  try {
-    const tips = JSON.parse(cleaned) as unknown[];
-    if (Array.isArray(tips) && tips.length > 0) return (tips as string[]).slice(0, 3);
-  } catch (_) { /* fall through */ }
-  return [cleaned];
+  const tips = JSON.parse(cleaned) as unknown[];
+  if (!Array.isArray(tips) || tips.length === 0) throw new Error('Invalid tips response from Gemini');
+  return (tips as string[]).slice(0, 3);
 }
