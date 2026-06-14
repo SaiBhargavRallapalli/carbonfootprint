@@ -1,14 +1,21 @@
 // EcoSage frontend — ES module, no build step required
 // Communicates with the Express API server for all data and AI features.
 
-const SESSION_ID = (() => {
+import { initializeApp }                                        from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup,
+         onAuthStateChanged, signOut as fbSignOut }             from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+function getAnonSessionId() {
   let id = sessionStorage.getItem('ecosage_session');
   if (!id) {
     id = `s_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     sessionStorage.setItem('ecosage_session', id);
   }
   return id;
-})();
+}
+
+let SESSION_ID   = getAnonSessionId();
+let firebaseAuth = null;
 
 // Emission factors fetched once from API
 let emissionFactors = {};
@@ -69,21 +76,79 @@ async function loadPanel(name) {
   if (name === 'actions')   await loadActions();
 }
 
+// ── Auth UI ───────────────────────────────────────────────
+function updateAuthUI(user) {
+  const signedIn  = document.getElementById('auth-signed-in');
+  const signedOut = document.getElementById('auth-signed-out');
+  if (!signedIn || !signedOut) return;
+  if (user) {
+    signedOut.hidden = true;
+    signedIn.hidden  = false;
+    document.getElementById('user-name').textContent = user.displayName ?? user.email ?? '';
+    const avatar = document.getElementById('user-avatar');
+    avatar.src    = user.photoURL ?? '';
+    avatar.hidden = !user.photoURL;
+  } else {
+    signedOut.hidden = false;
+    signedIn.hidden  = true;
+  }
+}
+
+document.getElementById('sign-in-btn')?.addEventListener('click', async () => {
+  if (!firebaseAuth) return;
+  try {
+    await signInWithPopup(firebaseAuth, new GoogleAuthProvider());
+  } catch (err) {
+    console.error('[auth] sign-in failed:', err.message);
+  }
+});
+
+document.getElementById('sign-out-btn')?.addEventListener('click', async () => {
+  if (!firebaseAuth) return;
+  await fbSignOut(firebaseAuth);
+});
+
 // ── Init ─────────────────────────────────────────────────
 async function init() {
   try {
-    const data = await apiFetch('/emission-factors');
-    emissionFactors = data.factors;
+    const [factorsData, cfg] = await Promise.all([
+      apiFetch('/emission-factors'),
+      apiFetch('/config'),
+    ]);
+    emissionFactors = factorsData.factors;
 
-    const cfg = await apiFetch('/config');
-    if (cfg.demoMode) {
-      document.getElementById('demo-badge').hidden = false;
-    }
+    if (cfg.demoMode) document.getElementById('demo-badge').hidden = false;
 
-    await loadDashboard();
-    panelLoaded['dashboard'] = true;
     initLogForm();
     initChatForm();
+
+    if (cfg.firebaseApiKey) {
+      const app = initializeApp({
+        apiKey:            cfg.firebaseApiKey,
+        authDomain:        cfg.firebaseAuthDomain,
+        projectId:         cfg.firebaseProjectId,
+        storageBucket:     cfg.firebaseStorageBucket,
+        messagingSenderId: cfg.firebaseMessagingSenderId,
+        appId:             cfg.firebaseAppId,
+      });
+      firebaseAuth = getAuth(app);
+
+      onAuthStateChanged(firebaseAuth, async user => {
+        SESSION_ID = user ? user.uid : getAnonSessionId();
+        updateAuthUI(user);
+        chatHistory = [];
+        panelLoaded = {};
+        await loadDashboard();
+        panelLoaded.dashboard = true;
+      });
+
+      // Show sign-in button while Firebase resolves auth state
+      document.getElementById('auth-signed-out').hidden = false;
+    } else {
+      // No Firebase config — load immediately with anonymous session
+      await loadDashboard();
+      panelLoaded.dashboard = true;
+    }
   } catch (err) {
     console.error('[init]', err);
   }

@@ -21,6 +21,16 @@
       </div>
       <p class="header-tagline">Your AI Carbon Footprint Coach</p>
       <div id="demo-badge" class="demo-badge" hidden aria-live="polite">Demo Mode — Add API keys for full features</div>
+      <div class="auth-section">
+        <div id="auth-signed-out" hidden>
+          <button id="sign-in-btn" class="btn-auth">Sign in with Google</button>
+        </div>
+        <div id="auth-signed-in" hidden>
+          <img id="user-avatar" src="" alt="Profile photo" class="user-avatar" hidden />
+          <span id="user-name" class="user-name"></span>
+          <button id="sign-out-btn" class="btn-auth-secondary">Sign out</button>
+        </div>
+      </div>
     </div>
   </header>
 

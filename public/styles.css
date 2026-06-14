@@ -95,6 +95,39 @@ header {
 .logo-icon { font-size: 1.6rem; }
 .logo-text { font-size: 1.4rem; font-weight: 700; letter-spacing: -.02em; }
 .header-tagline { font-size: .875rem; opacity: .85; margin-left: auto; }
+.auth-section { display: flex; align-items: center; gap: .5rem; margin-left: auto; }
+.header-tagline { margin-left: 0; }
+.btn-auth {
+  background: var(--white);
+  color: var(--green-900);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: .4rem .9rem;
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+.btn-auth:hover { opacity: .85; }
+.btn-auth-secondary {
+  background: transparent;
+  color: var(--white);
+  border: 1px solid rgba(255,255,255,.5);
+  border-radius: var(--radius-sm);
+  padding: .4rem .9rem;
+  font-size: .85rem;
+  cursor: pointer;
+  transition: border-color var(--transition);
+}
+.btn-auth-secondary:hover { border-color: var(--white); }
+.user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255,255,255,.6);
+}
+.user-name { font-size: .875rem; opacity: .9; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .demo-badge {
   background: var(--amber-500);
   color: var(--grey-900);
