@@ -64,7 +64,7 @@ Google Cloud Services
 
 ### The Smart AI Layer
 
-`services/gemini.js` builds a system prompt that injects the user's carbon profile before every Gemini call:
+`services/gemini.ts` builds a system prompt that injects the user's carbon profile before every Gemini call:
 
 ```
 USER'S CARBON PROFILE (last 30 days):
@@ -84,7 +84,7 @@ This means the AI coach genuinely personalises every response to the individual.
 
 ### Carbon Calculation Engine
 
-`services/carbonEngine.js` handles all CO₂ calculations:
+`services/carbonEngine.ts` handles all CO₂ calculations:
 - `calculateCO2(category, type, quantity)` → CO₂e in kg
 - `aggregateByCategory(activities)` → per-category totals
 - `compareToAverages(monthlyKg)` → rating vs Indian/global/Paris benchmarks
@@ -116,7 +116,7 @@ All functions are pure (no side effects), making them fully unit-testable.
 | **Code Quality** | Modular: thin `server.js` (55 lines) + `data/` + `services/` + `middleware/` + `routes/` (4 focused modules). Full `'use strict'`, consistent naming, zero dead code. |
 | **Security** | `helmet` (CSP + HSTS in production), `cors` with `ALLOWED_ORIGIN`, per-route rate limits (20/min chat, 100/min data), server-only API keys, `escHtml()` XSS protection on all user inputs, 10 MB JSON cap. |
 | **Efficiency** | In-memory TTL cache (30s) on insights/compare/tips, `compression` middleware (gzip), 1-day `Cache-Control` on static assets in production, Chart.js from CDN (no npm dep weight), lazy tab data fetching. |
-| **Testing** | Jest + Supertest — 89 tests across all 10 API routes, carbonEngine, cache, gemini, sanitize, and middleware. 90% line coverage threshold enforced. Playwright E2E — dashboard, logging, chat, accessibility (4 spec files). CI runs lint → unit → E2E → Docker build on every push. |
+| **Testing** | Jest + Supertest — 128 tests across all 10 API routes, carbonEngine, cache, gemini, sanitize, and middleware. 90% line coverage threshold enforced. Playwright E2E — dashboard, logging, chat, accessibility (4 spec files). CI runs lint → unit → E2E → Docker build on every push. |
 | **Accessibility** | Skip link, `role="tablist"` + `aria-selected` + `aria-controls`, `aria-live` regions for chat/tips/log feedback, semantic HTML, WCAG 2.1 AA contrast (green #2d6a4f on white), full keyboard nav with arrow keys, `prefers-reduced-motion` respected, mobile-responsive to 360px. |
 
 ---
@@ -135,25 +135,28 @@ All functions are pure (no side effects), making them fully unit-testable.
 
 ```
 carbonfootprint/
-├── server.js              # Entry point (72 lines)
-├── server.test.js         # Jest + Supertest — 89 tests, 92%+ coverage
+├── server.ts              # Entry point (68 lines)
+├── server.test.ts         # Jest + Supertest — 128 tests, 92%+ coverage
+├── types/
+│   └── index.ts           # Shared TypeScript interfaces
 ├── data/
-│   └── carbonData.js      # Emission factors, averages, action catalog
+│   └── carbonData.ts      # Emission factors, averages, action catalog
 ├── middleware/
-│   ├── index.js           # requestLogger, validateEnvironment
-│   └── rateLimiters.js    # chatLimiter (20/min), apiLimiter (100/min)
+│   ├── index.ts           # requestLogger, validateEnvironment
+│   └── rateLimiters.ts    # chatLimiter (20/min), apiLimiter (100/min)
 ├── routes/
-│   ├── config.js          # /api/health  /api/config  /api/emission-factors
-│   ├── tracking.js        # /api/log  /api/history
-│   ├── insights.js        # /api/insights  /api/compare  /api/actions
-│   └── ai.js              # /api/chat  /api/tips
+│   ├── config.ts          # /api/health  /api/config  /api/emission-factors
+│   ├── tracking.ts        # /api/log  /api/history
+│   ├── insights.ts        # /api/insights  /api/compare  /api/actions
+│   └── ai.ts              # /api/chat  /api/tips
 ├── services/
-│   ├── cache.js           # In-memory TTL cache
-│   ├── carbonEngine.js    # Pure CO₂ calculation functions
-│   ├── firestore.js       # Activity persistence (graceful demo fallback)
-│   └── gemini.js          # Personalised system prompt + Gemini chat
+│   ├── cache.ts           # In-memory TTL cache
+│   ├── carbonEngine.ts    # Pure CO₂ calculation functions
+│   ├── firestore.ts       # Activity persistence (graceful demo fallback)
+│   ├── firestore.test.ts  # Firestore unit tests
+│   └── gemini.ts          # Personalised system prompt + Gemini chat
 ├── utils/
-│   └── sanitize.js        # Shared escHtml XSS sanitiser
+│   └── sanitize.ts        # Shared escHtml XSS sanitiser
 ├── public/
 │   ├── index.html         # 5-tab SPA (dashboard, log, insights, chat, actions)
 │   ├── styles.css         # Earth/green design system (WCAG 2.1 AA)
