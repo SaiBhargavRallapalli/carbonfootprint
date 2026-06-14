@@ -104,7 +104,7 @@ export async function generateTips(profile: Partial<CarbonProfile>): Promise<str
   const body = {
     system_instruction: { parts: [{ text: systemInstruction }] },
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.5, maxOutputTokens: 256 },
+    generationConfig: { temperature: 0.5, maxOutputTokens: 256, responseMimeType: 'application/json' },
   };
 
   const res = await fetch(GEMINI_API_URL, {
@@ -119,8 +119,8 @@ export async function generateTips(profile: Partial<CarbonProfile>): Promise<str
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
   };
   const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-  // Strip markdown fences then try a direct parse; fall back to extracting the first [...] block
   const cleaned = raw.replace(/```json|```/g, '').trim();
+
   const tryParse = (s: string): string[] | null => {
     try {
       const parsed = JSON.parse(s) as unknown;
@@ -128,10 +128,21 @@ export async function generateTips(profile: Partial<CarbonProfile>): Promise<str
     } catch { /* continue */ }
     return null;
   };
+
+  // 1. Direct JSON parse
   const direct = tryParse(cleaned);
   if (direct) return direct;
-  const match = cleaned.match(/\[[\s\S]*?\]/);
+
+  // 2. Extract first [...] block (handles surrounding prose)
+  const match = cleaned.match(/\[[\s\S]*\]/);
   const fromMatch = match ? tryParse(match[0]) : null;
   if (fromMatch) return fromMatch;
+
+  // 3. Model returned plain text (numbered list / bullets) — split into tip lines
+  const lines = cleaned.split('\n')
+    .map(l => l.replace(/^[\s\d\-\*•·]+\.?\s*/, '').trim())
+    .filter(l => l.length >= 20);
+  if (lines.length >= 3) return lines.slice(0, 3);
+
   throw new Error('Could not extract tips array from Gemini response');
 }
