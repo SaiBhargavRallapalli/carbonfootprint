@@ -18,15 +18,43 @@
 
 ---
 
+## Problem Statement
+
+**Root challenge:** India is the world's third-largest emitter and its per-capita footprint is rising fast as incomes grow. Individual behaviour — how people commute, cook, cool their homes, and eat — drives a large share of that. Yet the average urban Indian has **no accurate way to measure their own carbon footprint, and no actionable guidance to lower it.** The tools that exist are built for Western lifestyles and give generic advice that ignores the user's real situation.
+
+**Target persona:** *Priya, 28, lives in Bengaluru.* She's climate-conscious and wants to act, but she doesn't know whether her 15 km scooter commute, her AC usage, or her food choices matter most. Existing calculators ask her to fill a 30-field form once, spit out an abstract "X tonnes/year," and offer tips like "drive less" that she can't act on.
+
+**User needs this product must satisfy:**
+
+| # | Need | Why it matters to Priya |
+|---|------|--------------------------|
+| N1 | **Measure accurately, with Indian numbers** | A US grid factor overstates her electricity emissions by ~40%. Wrong data → wrong priorities. |
+| N2 | **Know what to do *next*, specific to her** | "Drive less" is useless. "Shift your 15 km commute to metro → save 33 kg CO₂/month" is a decision. |
+| N3 | **Log in seconds, not fill a survey** | If tracking takes effort, she stops after day two. |
+| N4 | **See progress and context** | Is 142 kg good? She needs a benchmark (Indian avg, 1.5 °C target) to stay motivated. |
+
+**Core objectives** (how success is judged): accurate India-specific measurement (N1) · personalised, quantified guidance (N2) · sub-10-second logging (N3) · benchmarked progress visualisation (N4).
+
+---
+
 ## Approach & Logic
 
-India has 1.4 billion people with a rapidly growing carbon footprint, yet most existing tools use generic Western emission factors and give generic advice. EcoSage is built around three principles:
+India has 1.4 billion people with a rapidly growing carbon footprint, yet most existing tools use generic Western emission factors and give generic advice. EcoSage is built around three principles that map directly onto the user needs above:
 
-1. **Indian-first data** — Emission factors use India-specific sources: CEA 2024 grid intensity (0.82 kg CO₂/kWh), Indian transport modes (auto-rickshaw, two-wheeler, metro), Indian food patterns (veg/egg/chicken meals).
+1. **Indian-first data → satisfies N1.** Emission factors use India-specific sources: CEA 2024 grid intensity (0.82 kg CO₂/kWh), Indian transport modes (auto-rickshaw, two-wheeler, metro), Indian food patterns (veg/egg/chicken meals).
 
-2. **Personalised AI, not generic tips** — The Gemini AI assistant receives the user's *actual logged data* as system context before every response. It knows their total footprint, biggest emission category, and recent activities — so it gives specific, quantified advice like "switching your daily 15 km car commute to metro saves ~33 kg CO₂/month", not vague platitudes.
+2. **Personalised AI, not generic tips → satisfies N2.** The Gemini AI assistant receives the user's *actual logged data* as system context before every response. It knows their total footprint, biggest emission category, and recent activities — so it gives specific, quantified advice like "switching your daily 15 km car commute to metro saves ~33 kg CO₂/month", not vague platitudes.
 
-3. **Simple, frictionless tracking** — No signup required. A session ID persists the session. Five categories (Transport, Energy, Food, Shopping, Waste) cover the major sources. Log an activity in under 10 seconds.
+3. **Simple, frictionless tracking → satisfies N3 & N4.** No signup required. A session ID persists the session. Five categories (Transport, Energy, Food, Shopping, Waste) cover the major sources. Log an activity in under 10 seconds, then see it benchmarked against the Indian average and the 1.5 °C personal target on the dashboard.
+
+### Problem → Solution Traceability
+
+| User need | Where it's solved in the code |
+|-----------|-------------------------------|
+| N1 — Indian-accurate measurement | [data/carbonData.ts](data/carbonData.ts) emission factors · [services/carbonEngine.ts](services/carbonEngine.ts) `calculateCO2()` |
+| N2 — Personalised, quantified guidance | [services/gemini.ts](services/gemini.ts) `buildCarbonSystemPrompt()` injects the live profile · [routes/ai.ts](routes/ai.ts) `/chat` + `/tips` |
+| N3 — Sub-10-second logging | [public/app.js](public/app.js) `initLogForm()` (category → type → quantity) · [routes/tracking.ts](routes/tracking.ts) `/log` |
+| N4 — Benchmarked progress | [services/carbonEngine.ts](services/carbonEngine.ts) `compareToAverages()` · [routes/insights.ts](routes/insights.ts) `/insights` + `/compare` |
 
 ---
 
