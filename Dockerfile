@@ -11,6 +11,7 @@ COPY data/       ./data/
 COPY middleware/ ./middleware/
 COPY routes/     ./routes/
 COPY services/   ./services/
+COPY repository/ ./repository/
 COPY utils/      ./utils/
 COPY types/      ./types/
 

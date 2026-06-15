@@ -110,6 +110,37 @@ When advising:
 
 This means the AI coach genuinely personalises every response to the individual.
 
+### Graceful AI Degradation — the assistant never goes dark
+
+LLM calls fail in the real world: rate limits, quota exhaustion, transient 5xx, or unparseable output. EcoSage treats Gemini as an *enhancement*, not a hard dependency. `services/rules.ts` is a pure, deterministic rule engine that produces profile-aware advice from the user's biggest emission category and the action catalogue. When Gemini is unavailable, `chat()` and `generateTips()` **fall back to it instead of returning an error** — the user always gets real, data-driven guidance.
+
+```
+generateTips(profile)
+  ├─ no API key?            → ruleBasedTips(profile)         (demo mode)
+  ├─ Gemini 429 / 5xx?      → ruleBasedTips(profile)         (degraded)
+  ├─ unparseable response?  → ruleBasedTips(profile)         (degraded)
+  └─ valid JSON tips        → return Gemini's tips           (enhanced)
+```
+
+The fallback is fully unit-tested and shares the same `CarbonProfile` input as the LLM path, so degraded mode stays personalised.
+
+### Persistence Layer — repository pattern + dependency injection
+
+Routes never talk to Firestore directly. They depend on the `ActivityRepository`
+interface (`types/index.ts`) and obtain an implementation through `getRepository()`:
+
+```
+routes/*.ts ─► getRepository() ─┬─► FirestoreRepository  (Cloud Firestore, client injected)
+   (depend on the                └─► MemoryRepository      (demo mode + tests)
+    interface only)
+```
+
+`repository/index.ts` is the composition root: it tries to build a Firestore
+client and, if credentials are absent or the SDK is unavailable, transparently
+falls back to an in-memory demo repository. Swapping the backend touches **zero**
+route code, and `setRepository()` lets tests inject a fake — so the entire data
+layer is exercised without a database or network.
+
 ### Carbon Calculation Engine
 
 `services/carbonEngine.ts` handles all CO₂ calculations:
@@ -118,7 +149,7 @@ This means the AI coach genuinely personalises every response to the individual.
 - `compareToAverages(monthlyKg)` → rating vs Indian/global/Paris benchmarks
 - `topCategory(totals)` → identifies biggest emission source
 
-All functions are pure (no side effects), making them fully unit-testable.
+All functions are pure (no side effects), making them fully unit-testable. Every emission factor in `data/carbonData.ts` carries an **inline source citation** (CEA 2024, ICCT, IPCC AR6, DEFRA 2023, World Bank) so the numbers are auditable, not magic.
 
 ---
 
@@ -141,10 +172,11 @@ All functions are pure (no side effects), making them fully unit-testable.
 
 | Criterion | Evidence |
 |---|---|
-| **Code Quality** | Modular: thin `server.js` (55 lines) + `data/` + `services/` + `middleware/` + `routes/` (4 focused modules). Full `'use strict'`, consistent naming, zero dead code. |
-| **Security** | `helmet` (CSP + HSTS in production), `cors` with `ALLOWED_ORIGIN`, per-route rate limits (20/min chat, 100/min data), server-only API keys, `escHtml()` XSS protection on all user inputs, 10 MB JSON cap. |
+| **Code Quality** | TypeScript throughout (strict `tsc`). Layered architecture: thin `routes/` → `services/` (pure logic) → `repository/` (DI behind an `ActivityRepository` interface). Centralised `constants.ts` (no magic numbers), shared `cacheKey` builders, source-cited emission factors. ESLint-clean, zero dead code. |
+| **Security** | `helmet` (CSP + HSTS in production), `cors` with `ALLOWED_ORIGIN`, per-route rate limits (20/min chat, 100/min data), server-only API keys, `escHtml()` XSS protection on all user inputs, bounded validation (session-id length, quantity ≥ 0, timestamp window), 10 MB JSON cap. |
 | **Efficiency** | In-memory TTL cache (30s) on insights/compare/tips, `compression` middleware (gzip), 1-day `Cache-Control` on static assets in production, Chart.js from CDN (no npm dep weight), lazy tab data fetching. |
-| **Testing** | Jest + Supertest — 128 tests across all 10 API routes, carbonEngine, cache, gemini, sanitize, and middleware. 90% line coverage threshold enforced. Playwright E2E — dashboard, logging, chat, accessibility (4 spec files). CI runs lint → unit → E2E → Docker build on every push. |
+| **Testing** | Jest + Supertest — 140 tests across all 10 API routes, carbonEngine, cache, gemini, the rule-based fallback, both repository implementations (fake Firestore client), sanitize, and middleware. 90% line / 83% branch coverage thresholds enforced. Playwright E2E — dashboard, logging, chat, accessibility (4 spec files, 25 tests). CI runs lint → typecheck → unit → E2E → Docker build on every push. |
+| **Reliability** | Graceful AI degradation: Gemini failures (rate-limit, quota, parse errors) fall back to a deterministic rule engine (`services/rules.ts`) — the assistant never returns a 500. Firestore degrades to demo data when unconfigured. |
 | **Accessibility** | Skip link, `role="tablist"` + `aria-selected` + `aria-controls`, `aria-live` regions for chat/tips/log feedback, semantic HTML, WCAG 2.1 AA contrast (green #2d6a4f on white), full keyboard nav with arrow keys, `prefers-reduced-motion` respected, mobile-responsive to 360px. |
 
 ---
@@ -154,7 +186,7 @@ All functions are pure (no side effects), making them fully unit-testable.
 1. Emission factors use India-specific sources (CEA 2024, ICCT, IPCC AR6). Production would sync with live CEA data API.
 2. Session-based tracking (no mandatory login). Optional Firebase Auth for cross-device sync.
 3. Indian average of 1.9 tCO₂/year (158 kg/month) from World Bank 2022 data.
-4. App degrades gracefully to demo mode if `GEMINI_API_KEY` is unset — all pages still function with static/demo data.
+4. App degrades gracefully if `GEMINI_API_KEY` is unset **or** Gemini is rate-limited/unavailable — the deterministic rule engine (`services/rules.ts`) serves profile-aware advice so the assistant never fails.
 5. Firestore uses anonymous sessions; no PII is stored without explicit Google Sign-In.
 
 ---
@@ -164,11 +196,12 @@ All functions are pure (no side effects), making them fully unit-testable.
 ```
 carbonfootprint/
 ├── server.ts              # Entry point (68 lines)
-├── server.test.ts         # Jest + Supertest — 128 tests, 92%+ coverage
+├── server.test.ts         # Jest + Supertest — 140 tests, 92%+ coverage
+├── constants.ts           # Single source of truth for tunables + cache keys
 ├── types/
 │   └── index.ts           # Shared TypeScript interfaces
 ├── data/
-│   └── carbonData.ts      # Emission factors, averages, action catalog
+│   └── carbonData.ts      # Emission factors (source-cited), averages, action catalog
 ├── middleware/
 │   ├── index.ts           # requestLogger, validateEnvironment
 │   └── rateLimiters.ts    # chatLimiter (20/min), apiLimiter (100/min)
@@ -180,9 +213,13 @@ carbonfootprint/
 ├── services/
 │   ├── cache.ts           # In-memory TTL cache
 │   ├── carbonEngine.ts    # Pure CO₂ calculation functions
-│   ├── firestore.ts       # Activity persistence (graceful demo fallback)
-│   ├── firestore.test.ts  # Firestore unit tests
-│   └── gemini.ts          # Personalised system prompt + Gemini chat
+│   ├── rules.ts           # Deterministic rule-based AI fallback (pure)
+│   └── gemini.ts          # Personalised prompt + Gemini chat (degrades to rules.ts)
+├── repository/            # Persistence layer (dependency-injected)
+│   ├── index.ts           # getRepository() composition root + DI seam
+│   ├── firestoreRepository.ts  # Cloud Firestore implementation (client injected)
+│   ├── memoryRepository.ts     # In-memory impl — demo mode + tests
+│   └── repository.test.ts # Repository unit tests (fake Firestore client)
 ├── utils/
 │   └── sanitize.ts        # Shared escHtml XSS sanitiser
 ├── public/

@@ -1,4 +1,5 @@
 import { AVERAGES } from '../data/carbonData';
+import { ruleBasedTips, ruleBasedChatReply } from './rules';
 import type { CarbonProfile, GeminiContent } from '../types';
 import {
   GEMINI_CHAT_TEMPERATURE, GEMINI_CHAT_MAX_TOKENS,
@@ -94,18 +95,20 @@ export async function chat(
     ],
   };
 
-  return callGeminiApi(apiKey, body);
+  // Graceful degradation: if Gemini is down or rate-limited, fall back to
+  // deterministic, profile-aware advice rather than failing the request.
+  try {
+    return await callGeminiApi(apiKey, body);
+  } catch (err) {
+    console.warn('[gemini] chat fell back to rule-based reply:', (err as Error).message);
+    return ruleBasedChatReply(profile);
+  }
 }
 
 export async function generateTips(profile: Partial<CarbonProfile>): Promise<string[]> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return [
-      'Add your GEMINI_API_KEY to unlock personalised AI tips.',
-      'Try switching short car trips to walking or cycling.',
-      'Set your AC to 24°C — each degree higher saves ~6% energy.',
-    ];
-  }
+  // No key configured: serve deterministic, profile-aware tips (demo mode).
+  if (!apiKey) return ruleBasedTips(profile);
 
   const systemInstruction = buildCarbonSystemPrompt(profile);
   const prompt = `Based on this user's carbon profile, provide exactly 3 short, actionable tips (one sentence each) to reduce their footprint this week. Focus on their biggest emission source. Return only a JSON array of 3 strings, no extra text.`;
@@ -116,7 +119,15 @@ export async function generateTips(profile: Partial<CarbonProfile>): Promise<str
     generationConfig: { temperature: GEMINI_TIPS_TEMPERATURE, maxOutputTokens: GEMINI_TIPS_MAX_TOKENS, responseMimeType: 'application/json' },
   };
 
-  const raw = await callGeminiApi(apiKey, body);
+  let raw: string;
+  try {
+    raw = await callGeminiApi(apiKey, body);
+  } catch (err) {
+    // Gemini unavailable / rate-limited: degrade to deterministic tips.
+    console.warn('[gemini] tips fell back to rule-based advice:', (err as Error).message);
+    return ruleBasedTips(profile);
+  }
+
   const cleaned = raw.replace(/```json|```/g, '').trim();
 
   const tryParse = (s: string): string[] | null => {
@@ -142,5 +153,7 @@ export async function generateTips(profile: Partial<CarbonProfile>): Promise<str
     .filter(l => l.length >= MIN_TIP_LINE_LENGTH);
   if (lines.length >= MAX_TIPS_SLICED) return lines.slice(0, MAX_TIPS_SLICED);
 
-  throw new Error('Could not extract tips array from Gemini response');
+  // 4. Unparseable response: deterministic fallback rather than an error.
+  console.warn('[gemini] tips response unparseable; using rule-based advice');
+  return ruleBasedTips(profile);
 }

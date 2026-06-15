@@ -75,6 +75,17 @@ export interface LogActivityResult {
   id: string;
 }
 
+/**
+ * Persistence boundary for activity data. Routes depend on this interface,
+ * not on a concrete backend — so Firestore can be swapped for an in-memory
+ * store (demo mode, tests) without touching any route code.
+ */
+export interface ActivityRepository {
+  logActivity(sessionId: string, activity: Omit<Activity, 'id'>): Promise<LogActivityResult>;
+  getHistory(sessionId: string, limitCount?: number): Promise<Activity[]>;
+  getActivitiesSince(sessionId: string, since: Date): Promise<Activity[]>;
+}
+
 export interface GeminiContentPart {
   text: string;
 }

@@ -18,8 +18,10 @@
   },
   "include": [
     "server.ts",
+    "constants.ts",
     "routes/**/*.ts",
     "services/**/*.ts",
+    "repository/**/*.ts",
     "middleware/**/*.ts",
     "data/**/*.ts",
     "utils/**/*.ts",

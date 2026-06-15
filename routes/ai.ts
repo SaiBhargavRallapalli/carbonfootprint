@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { chat, generateTips } from '../services/gemini';
-import { getActivitiesSince } from '../services/firestore';
+import { getRepository } from '../repository';
 import { aggregateByCategory, topCategory } from '../services/carbonEngine';
 import * as cache from '../services/cache';
 import { chatLimiter, apiLimiter } from '../middleware/rateLimiters';
@@ -25,7 +25,7 @@ function isGeminiContent(h: unknown): h is GeminiContent {
 
 async function buildProfile(sessionId: string): Promise<CarbonProfile> {
   const since = new Date(Date.now() - DEFAULT_DAYS * MS_PER_DAY);
-  const activities = await getActivitiesSince(sessionId, since);
+  const activities = await getRepository().getActivitiesSince(sessionId, since);
   const { totals, grandTotal } = aggregateByCategory(activities);
   const topCat = topCategory(totals);
   return { totals, grandTotal, topCat, recentActivities: activities.slice(0, MAX_RECENT_ACTIVITIES) };

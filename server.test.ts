@@ -1,14 +1,22 @@
 process.env.NODE_ENV = 'test';
 
-// Mock the firestore service entirely — no firebase-admin needed in tests
-jest.mock('./services/firestore', () => ({
-  logActivity: jest.fn().mockResolvedValue({ id: 'test-doc-id' }),
-  getHistory: jest.fn().mockResolvedValue([]),
-  getActivitiesSince: jest.fn().mockResolvedValue([
-    { id: 'act1', category: 'transport', type: 'petrol_car', quantity: 10,
-      co2: 1.71, label: 'Petrol Car', unit: 'km', timestamp: Date.now() - 86400000 },
-  ]),
-}));
+// Mock the repository layer entirely — no firebase-admin needed in tests.
+// getRepository() returns a stable mock whose methods can be overridden per-test.
+jest.mock('./repository', () => {
+  const mockRepo = {
+    logActivity: jest.fn().mockResolvedValue({ id: 'test-doc-id' }),
+    getHistory: jest.fn().mockResolvedValue([]),
+    getActivitiesSince: jest.fn().mockResolvedValue([
+      { id: 'act1', category: 'transport', type: 'petrol_car', quantity: 10,
+        co2: 1.71, label: 'Petrol Car', unit: 'km', timestamp: Date.now() - 86400000 },
+    ]),
+  };
+  return {
+    getRepository: () => mockRepo,
+    setRepository: jest.fn(),
+    resetRepository: jest.fn(),
+  };
+});
 
 // Mock chat/generateTips as jest.fn() calling through to the real implementation
 // so they return demo responses by default and can be overridden per-test
@@ -24,11 +32,19 @@ jest.mock('./services/gemini', () => {
 import request from 'supertest';
 import express, { Request, Response, NextFunction } from 'express';
 import app from './server';
-import * as firestoreService from './services/firestore';
+import { getRepository } from './repository';
+
+// The mocked getRepository() returns a stable object; grab it once for overrides.
+const repo = getRepository() as unknown as {
+  logActivity: jest.Mock;
+  getHistory: jest.Mock;
+  getActivitiesSince: jest.Mock;
+};
 import * as geminiService from './services/gemini';
 import { calculateCO2, aggregateByCategory, compareToAverages, topCategory } from './services/carbonEngine';
 import * as cache from './services/cache';
 import { buildCarbonSystemPrompt, chat, generateTips } from './services/gemini';
+import { ruleBasedTips, ruleBasedChatReply } from './services/rules';
 import { escHtml } from './utils/sanitize';
 import { requestLogger, validateEnvironment } from './middleware/index';
 import { EMISSION_FACTORS, AVERAGES, ACTIONS } from './data/carbonData';
@@ -219,7 +235,7 @@ describe('POST /api/log', () => {
   });
 
   it('returns 500 when logActivity throws unexpectedly', async () => {
-    (firestoreService.logActivity as jest.Mock).mockRejectedValueOnce(new Error('DB crash'));
+    repo.logActivity.mockRejectedValueOnce(new Error('DB crash'));
     const res = await request(app).post('/api/log')
       .send({ sessionId: 'test-session', category: 'transport', type: 'petrol_car', quantity: 5 });
     expect(res.status).toBe(500);
@@ -252,7 +268,7 @@ describe('GET /api/history', () => {
   });
 
   it('returns 500 when getHistory throws', async () => {
-    (firestoreService.getHistory as jest.Mock).mockRejectedValueOnce(new Error('DB error'));
+    repo.getHistory.mockRejectedValueOnce(new Error('DB error'));
     const res = await request(app).get('/api/history?sessionId=test-session');
     expect(res.status).toBe(500);
     expect(res.body.error).toMatch(/Failed to retrieve/i);
@@ -284,14 +300,14 @@ describe('GET /api/insights', () => {
   });
 
   it('returns 500 when getActivitiesSince throws', async () => {
-    (firestoreService.getActivitiesSince as jest.Mock).mockRejectedValueOnce(new Error('Firestore down'));
+    repo.getActivitiesSince.mockRejectedValueOnce(new Error('Firestore down'));
     const res = await request(app).get('/api/insights?sessionId=err-session&days=30');
     expect(res.status).toBe(500);
     expect(res.body.error).toMatch(/Failed to compute/i);
   });
 
   it('covers activity with no timestamp — falls back to createdAt', async () => {
-    (firestoreService.getActivitiesSince as jest.Mock).mockResolvedValueOnce([
+    repo.getActivitiesSince.mockResolvedValueOnce([
       { id: 'a1', category: 'food', type: 'veg_meal', quantity: 2, co2: 0.7, label: 'Veg Meal', unit: 'meal',
         createdAt: { toDate: () => new Date(Date.now() - 86400000) } },
       { id: 'a2', category: 'food', type: 'veg_meal', quantity: 2, co2: 0.7, label: 'Veg Meal', unit: 'meal' },
@@ -315,7 +331,7 @@ describe('GET /api/insights', () => {
 
   it('handles two activities on the same day', async () => {
     const sameDay = Date.now() - 86400000;
-    (firestoreService.getActivitiesSince as jest.Mock).mockResolvedValueOnce([
+    repo.getActivitiesSince.mockResolvedValueOnce([
       { id: 'x1', category: 'transport', type: 'petrol_car', quantity: 5, co2: 0.855, label: 'Petrol Car', unit: 'km', timestamp: sameDay },
       { id: 'x2', category: 'energy', type: 'electricity', quantity: 2, co2: 1.64, label: 'Electricity', unit: 'kWh', timestamp: sameDay },
     ]);
@@ -343,7 +359,7 @@ describe('GET /api/compare', () => {
   });
 
   it('returns 500 when getActivitiesSince throws', async () => {
-    (firestoreService.getActivitiesSince as jest.Mock).mockRejectedValueOnce(new Error('Firestore down'));
+    repo.getActivitiesSince.mockRejectedValueOnce(new Error('Firestore down'));
     const res = await request(app).get('/api/compare?sessionId=err-session&days=30');
     expect(res.status).toBe(500);
     expect(res.body.error).toMatch(/Failed to compare/i);
@@ -714,14 +730,19 @@ describe('gemini', () => {
       expect(await chat('test message', [], { totals: { transport: 0, energy: 0, food: 0, shopping: 0, waste: 0 }, grandTotal: 0, topCat: 'transport', recentActivities: [] })).toBe('Mock AI reply');
     });
 
-    it('throws when Gemini API returns non-ok status', async () => {
+    it('falls back to a rule-based reply when Gemini returns non-ok status', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 403, text: async () => 'Forbidden' }) as typeof fetch;
-      await expect(chat('test', [], {})).rejects.toThrow('403');
+      const reply = await chat('test', [], { totals: { transport: 50, energy: 0, food: 0, shopping: 0, waste: 0 }, grandTotal: 50, topCat: 'transport', recentActivities: [] });
+      expect(typeof reply).toBe('string');
+      expect(reply.length).toBeGreaterThan(0);
+      expect(reply).toMatch(/transport/i);
     });
 
-    it('throws when Gemini response has no text', async () => {
+    it('falls back to a rule-based reply when Gemini response has no text', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ candidates: [] }) }) as typeof fetch;
-      await expect(chat('test', [], {})).rejects.toThrow('Empty response');
+      const reply = await chat('test', [], {});
+      expect(typeof reply).toBe('string');
+      expect(reply.length).toBeGreaterThan(0);
     });
   });
 
@@ -738,9 +759,11 @@ describe('gemini', () => {
       expect(tips[0]).toBe('Tip one');
     });
 
-    it('throws when Gemini returns unparseable JSON', async () => {
+    it('falls back to rule-based tips when Gemini returns unparseable JSON', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'not valid json' }] } }] }) }) as typeof fetch;
-      await expect(generateTips({})).rejects.toThrow('Could not extract tips array from Gemini response');
+      const tips = await generateTips({ totals: { transport: 50, energy: 0, food: 0, shopping: 0, waste: 0 }, grandTotal: 50, topCat: 'transport', recentActivities: [] });
+      expect(Array.isArray(tips)).toBe(true);
+      expect(tips.length).toBe(3);
     });
 
     it('returns demo tips when no API key', async () => {
@@ -750,14 +773,18 @@ describe('gemini', () => {
       expect(tips.length).toBe(3);
     });
 
-    it('throws when generateTips API returns non-ok', async () => {
+    it('falls back to rule-based tips when Gemini API returns non-ok', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500, text: async () => 'Error' }) as typeof fetch;
-      await expect(generateTips({})).rejects.toThrow('500');
+      const tips = await generateTips({ totals: { transport: 0, energy: 40, food: 0, shopping: 0, waste: 0 }, grandTotal: 40, topCat: 'energy', recentActivities: [] });
+      expect(Array.isArray(tips)).toBe(true);
+      expect(tips.length).toBe(3);
     });
 
-    it('throws when Gemini returns an empty array', async () => {
+    it('falls back to rule-based tips when Gemini returns an empty array', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '[]' }] } }] }) }) as typeof fetch;
-      await expect(generateTips({})).rejects.toThrow('Could not extract tips array from Gemini response');
+      const tips = await generateTips({});
+      expect(Array.isArray(tips)).toBe(true);
+      expect(tips.length).toBe(3);
     });
   });
 
@@ -798,6 +825,60 @@ describe('sanitize', () => {
   it('coerces non-string input to string', () => { expect(escHtml(42)).toBe('42'); });
   it('returns empty string for empty input', () => { expect(escHtml('')).toBe(''); });
   it('leaves clean strings unchanged', () => { expect(escHtml('hello world')).toBe('hello world'); });
+});
+
+// ── rule-based fallback (deterministic AI degradation) ─────
+describe('rules — deterministic fallback', () => {
+  describe('ruleBasedTips', () => {
+    it('returns exactly 3 tips for a known top category', () => {
+      const tips = ruleBasedTips({ totals: { transport: 80, energy: 0, food: 0, shopping: 0, waste: 0 }, grandTotal: 80, topCat: 'transport', recentActivities: [] });
+      expect(tips).toHaveLength(3);
+      tips.forEach(t => expect(typeof t).toBe('string'));
+    });
+
+    it('prioritises actions from the biggest emission category', () => {
+      const tips = ruleBasedTips({ totals: { transport: 0, energy: 90, food: 0, shopping: 0, waste: 0 }, grandTotal: 90, topCat: 'energy', recentActivities: [] });
+      // The highest-impact energy action is reducing AC usage.
+      expect(tips[0]).toMatch(/AC/i);
+    });
+
+    it('tops up with highest-impact actions when a category has few', () => {
+      const tips = ruleBasedTips({ totals: { transport: 0, energy: 0, food: 0, shopping: 30, waste: 0 }, grandTotal: 30, topCat: 'shopping', recentActivities: [] });
+      expect(tips).toHaveLength(3); // shopping has only 1 catalogue action → topped up
+      expect(new Set(tips).size).toBe(3); // no duplicates
+    });
+
+    it('returns onboarding tips when no data is logged', () => {
+      const tips = ruleBasedTips({ topCat: 'none', grandTotal: 0 });
+      expect(tips).toHaveLength(3);
+      expect(tips[0]).toMatch(/log/i);
+    });
+
+    it('treats an unknown top category as the empty case', () => {
+      const tips = ruleBasedTips({ topCat: 'unknown' });
+      expect(tips).toHaveLength(3);
+    });
+  });
+
+  describe('ruleBasedChatReply', () => {
+    it('summarises the footprint vs the Indian average when data exists', () => {
+      const reply = ruleBasedChatReply({ totals: { transport: 200, energy: 0, food: 0, shopping: 0, waste: 0 }, grandTotal: 200, topCat: 'transport', recentActivities: [] });
+      expect(reply).toMatch(/200/);
+      expect(reply).toMatch(/above/i);
+      expect(reply).toMatch(/transport/i);
+    });
+
+    it('reports below-average footprints correctly', () => {
+      const reply = ruleBasedChatReply({ totals: { transport: 50, energy: 0, food: 0, shopping: 0, waste: 0 }, grandTotal: 50, topCat: 'transport', recentActivities: [] });
+      expect(reply).toMatch(/below/i);
+    });
+
+    it('handles an empty profile gracefully', () => {
+      const reply = ruleBasedChatReply({});
+      expect(typeof reply).toBe('string');
+      expect(reply.length).toBeGreaterThan(0);
+    });
+  });
 });
 
 // ── middleware unit tests ─────────────────────────────────

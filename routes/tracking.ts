@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { calculateCO2 } from '../services/carbonEngine';
-import { logActivity, getHistory } from '../services/firestore';
+import { getRepository } from '../repository';
 import * as cache from '../services/cache';
 import { apiLimiter } from '../middleware/rateLimiters';
 import { escHtml } from '../utils/sanitize';
@@ -56,7 +56,7 @@ router.post('/log', apiLimiter, async (req, res) => {
     };
 
     const safeSid = escHtml(sessionId);
-    const result = await logActivity(safeSid, activity);
+    const result = await getRepository().logActivity(safeSid, activity);
 
     cache.delByPrefix(ck.insightsPrefix(safeSid));
     cache.delByPrefix(ck.comparePrefix(safeSid));
@@ -78,7 +78,7 @@ router.get('/history', apiLimiter, async (req, res) => {
       return res.status(400).json({ error: 'sessionId query param required' });
     }
     const limitCount = Math.min(parseInt(limit ?? String(DEFAULT_LIMIT)) || DEFAULT_LIMIT, MAX_LIMIT);
-    const activities = await getHistory(escHtml(sessionId), limitCount);
+    const activities = await getRepository().getHistory(escHtml(sessionId), limitCount);
     return res.json({ activities });
   } catch (err) {
     console.error('[history]', err);

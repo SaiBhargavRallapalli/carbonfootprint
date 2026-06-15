@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getActivitiesSince } from '../services/firestore';
+import { getRepository } from '../repository';
 import { aggregateByCategory, compareToAverages, topCategory } from '../services/carbonEngine';
 import { ACTIONS, AVERAGES } from '../data/carbonData';
 import * as cache from '../services/cache';
@@ -24,7 +24,7 @@ router.get('/insights', apiLimiter, async (req, res) => {
     if (cached) return res.set('X-Cache', 'HIT').json(cached);
 
     const since = new Date(Date.now() - dayCount * MS_PER_DAY);
-    const activities = await getActivitiesSince(safeSid, since);
+    const activities = await getRepository().getActivitiesSince(safeSid, since);
     const { totals, grandTotal } = aggregateByCategory(activities);
     const top = topCategory(totals);
 
@@ -61,7 +61,7 @@ router.get('/compare', apiLimiter, async (req, res) => {
     if (cached) return res.set('X-Cache', 'HIT').json(cached);
 
     const since = new Date(Date.now() - dayCount * MS_PER_DAY);
-    const activities: Activity[] = await getActivitiesSince(safeSid, since);
+    const activities: Activity[] = await getRepository().getActivitiesSince(safeSid, since);
     const { grandTotal } = aggregateByCategory(activities);
     const monthlyEquivalent = parseFloat((grandTotal * (30 / dayCount)).toFixed(2));
     const comparison = compareToAverages(monthlyEquivalent);
