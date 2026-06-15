@@ -11,9 +11,9 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
 }
 
 export function validateEnvironment(): void {
-  const required = ['GEMINI_API_KEY', 'FIREBASE_PROJECT_ID'];
-  const missing  = required.filter(k => !process.env[k]);
+  const optionalWithFallback = ['GEMINI_API_KEY', 'FIREBASE_PROJECT_ID'];
+  const missing = optionalWithFallback.filter(k => !process.env[k]);
   if (missing.length) {
-    console.warn(`[ENV] Missing optional env vars (demo mode active): ${missing.join(', ')}`);
+    console.warn(`[ENV] Running in demo mode — missing: ${missing.join(', ')}`);
   }
 }

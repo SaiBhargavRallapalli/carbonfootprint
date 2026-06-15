@@ -1,4 +1,5 @@
 import { EMISSION_FACTORS, AVERAGES } from '../data/carbonData';
+import { EXCELLENT_THRESHOLD_FACTOR } from '../constants';
 import type {
   Category, CO2Result, AggregateResult, CategoryTotals, ComparisonResult, Activity,
 } from '../types';
@@ -42,7 +43,7 @@ export function compareToAverages(monthlyKg: number): ComparisonResult {
   const paris_diff_pct  = parseFloat((((monthlyKg - AVERAGES.paris_monthly)  / AVERAGES.paris_monthly)  * 100).toFixed(1));
 
   let rating: ComparisonResult['rating'];
-  if (monthlyKg <= AVERAGES.india_monthly * 0.5) rating = 'excellent';
+  if (monthlyKg <= AVERAGES.india_monthly * EXCELLENT_THRESHOLD_FACTOR) rating = 'excellent';
   else if (monthlyKg <= AVERAGES.india_monthly)  rating = 'good';
   else if (monthlyKg <= AVERAGES.paris_monthly)  rating = 'average';
   else                                            rating = 'high';
@@ -53,5 +54,5 @@ export function compareToAverages(monthlyKg: number): ComparisonResult {
 export function topCategory(totals: CategoryTotals): string {
   const entries = Object.entries(totals).filter(([, v]) => v > 0);
   if (entries.length === 0) return 'none';
-  return entries.sort((a, b) => b[1] - a[1])[0][0];
+  return entries.reduce((max, cur) => cur[1] > max[1] ? cur : max)[0];
 }

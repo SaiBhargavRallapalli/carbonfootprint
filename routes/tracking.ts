@@ -4,6 +4,10 @@ import { logActivity, getHistory } from '../services/firestore';
 import * as cache from '../services/cache';
 import { apiLimiter } from '../middleware/rateLimiters';
 import { escHtml } from '../utils/sanitize';
+import {
+  MAX_SESSION_ID_LEN, MAX_TIMESTAMP_FUTURE_MS, MS_PER_DAY, MAX_HISTORY_DAYS,
+  DEFAULT_LIMIT, MAX_LIMIT,
+} from '../constants';
 
 const router = Router();
 
@@ -17,7 +21,7 @@ router.post('/log', apiLimiter, async (req, res) => {
       timestamp?: unknown;
     };
 
-    if (!sessionId || typeof sessionId !== 'string' || sessionId.length > 128) {
+    if (!sessionId || typeof sessionId !== 'string' || sessionId.length > MAX_SESSION_ID_LEN) {
       return res.status(400).json({ error: 'sessionId is required (string, max 128 chars)' });
     }
     if (!category || !type) {
@@ -35,7 +39,7 @@ router.post('/log', apiLimiter, async (req, res) => {
     if (timestamp !== undefined) {
       const parsed = typeof timestamp === 'number' ? timestamp : new Date(String(timestamp)).getTime();
       const now = Date.now();
-      if (!isFinite(parsed) || parsed > now + 60_000 || parsed < now - 365 * 86_400_000) {
+      if (!isFinite(parsed) || parsed > now + MAX_TIMESTAMP_FUTURE_MS || parsed < now - MAX_HISTORY_DAYS * MS_PER_DAY) {
         return res.status(400).json({ error: 'timestamp must be within the past year and not in the future' });
       }
       ts = parsed;
@@ -73,7 +77,7 @@ router.get('/history', apiLimiter, async (req, res) => {
     if (!sessionId || typeof sessionId !== 'string') {
       return res.status(400).json({ error: 'sessionId query param required' });
     }
-    const limitCount = Math.min(parseInt(limit ?? '50') || 50, 100);
+    const limitCount = Math.min(parseInt(limit ?? String(DEFAULT_LIMIT)) || DEFAULT_LIMIT, MAX_LIMIT);
     const activities = await getHistory(escHtml(sessionId), limitCount);
     return res.json({ activities });
   } catch (err) {

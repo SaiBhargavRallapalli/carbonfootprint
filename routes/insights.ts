@@ -5,6 +5,7 @@ import { ACTIONS, AVERAGES } from '../data/carbonData';
 import * as cache from '../services/cache';
 import { apiLimiter } from '../middleware/rateLimiters';
 import { escHtml } from '../utils/sanitize';
+import { MS_PER_DAY, DEFAULT_DAYS, MAX_HISTORY_DAYS } from '../constants';
 import type { Activity } from '../types';
 
 const router = Router();
@@ -16,13 +17,13 @@ router.get('/insights', apiLimiter, async (req, res) => {
       return res.status(400).json({ error: 'sessionId query param required' });
     }
     const safeSid = escHtml(sessionId);
-    const dayCount = Math.min(parseInt(days ?? '30') || 30, 365);
+    const dayCount = Math.min(parseInt(days ?? String(DEFAULT_DAYS)) || DEFAULT_DAYS, MAX_HISTORY_DAYS);
     const cacheKey = `insights:${safeSid}:${dayCount}`;
 
     const cached = cache.get(cacheKey);
     if (cached) return res.set('X-Cache', 'HIT').json(cached);
 
-    const since = new Date(Date.now() - dayCount * 86400000);
+    const since = new Date(Date.now() - dayCount * MS_PER_DAY);
     const activities = await getActivitiesSince(safeSid, since);
     const { totals, grandTotal } = aggregateByCategory(activities);
     const top = topCategory(totals);
@@ -53,13 +54,13 @@ router.get('/compare', apiLimiter, async (req, res) => {
       return res.status(400).json({ error: 'sessionId query param required' });
     }
     const safeSid = escHtml(sessionId);
-    const dayCount = Math.min(parseInt(days ?? '30') || 30, 365);
+    const dayCount = Math.min(parseInt(days ?? String(DEFAULT_DAYS)) || DEFAULT_DAYS, MAX_HISTORY_DAYS);
     const cacheKey = `compare:${safeSid}:${dayCount}`;
 
     const cached = cache.get(cacheKey);
     if (cached) return res.set('X-Cache', 'HIT').json(cached);
 
-    const since = new Date(Date.now() - dayCount * 86400000);
+    const since = new Date(Date.now() - dayCount * MS_PER_DAY);
     const activities: Activity[] = await getActivitiesSince(safeSid, since);
     const { grandTotal } = aggregateByCategory(activities);
     const monthlyEquivalent = parseFloat((grandTotal * (30 / dayCount)).toFixed(2));

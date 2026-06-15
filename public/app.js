@@ -17,6 +17,8 @@ function getAnonSessionId() {
 let SESSION_ID   = getAnonSessionId();
 let firebaseAuth = null;
 
+const REDUCE_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 // Emission factors fetched once from API
 let emissionFactors = {};
 let chartInstances  = {};
@@ -199,20 +201,19 @@ function drawGauge(value, averages) {
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  ctx.lineWidth = 18;
+  ctx.lineCap = 'round';
+
   // Background arc
   ctx.beginPath();
   ctx.arc(cx, cy, r, start, end);
   ctx.strokeStyle = '#e5e7eb';
-  ctx.lineWidth = 18;
-  ctx.lineCap = 'round';
   ctx.stroke();
 
   // Value arc
   ctx.beginPath();
   ctx.arc(cx, cy, r, start, angle);
   ctx.strokeStyle = color;
-  ctx.lineWidth = 18;
-  ctx.lineCap = 'round';
   ctx.stroke();
 }
 
@@ -236,7 +237,7 @@ async function loadBreakdownChart() {
           legend: { display: false },
           tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed.toFixed(1)} kg` } },
         },
-        animation: { duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 600 },
+        animation: { duration: REDUCE_MOTION ? 0 : 600 },
       },
     });
 
@@ -445,7 +446,7 @@ async function loadTrendChart(days) {
           y: { beginAtZero: true, ticks: { callback: v => `${v} kg` } },
           x: { ticks: { maxTicksLimit: 8 } },
         },
-        animation: { duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 400 },
+        animation: { duration: REDUCE_MOTION ? 0 : 400 },
       },
     });
   } catch (_) { /* silent */ }
@@ -474,7 +475,7 @@ async function loadCompareChart(days) {
         maintainAspectRatio: false,
         plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y.toFixed(1)} kg/month` } } },
         scales: { y: { beginAtZero: true, ticks: { callback: v => `${v} kg` } } },
-        animation: { duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 400 },
+        animation: { duration: REDUCE_MOTION ? 0 : 400 },
       },
     });
   } catch (_) { /* silent */ }

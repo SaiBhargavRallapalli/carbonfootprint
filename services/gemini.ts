@@ -1,9 +1,34 @@
 import { AVERAGES } from '../data/carbonData';
 import type { CarbonProfile, GeminiContent } from '../types';
+import {
+  GEMINI_CHAT_TEMPERATURE, GEMINI_CHAT_MAX_TOKENS,
+  GEMINI_TIPS_TEMPERATURE, GEMINI_TIPS_MAX_TOKENS,
+  MIN_TIP_LINE_LENGTH, MAX_TIPS_SLICED,
+  MAX_RECENT_ACTIVITIES,
+} from '../constants';
 
 const GEMINI_MODEL   = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash-latest';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 const DEMO_RESPONSE  = "I'm EcoSage, your AI carbon coach! (Running in demo mode — add your GEMINI_API_KEY to enable full AI responses.) Ask me anything about your carbon footprint, and I'll help you reduce it with personalised, data-driven advice.";
+
+type GeminiBody = Record<string, unknown>;
+type GeminiResponse = { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+
+async function callGeminiApi(apiKey: string, body: GeminiBody): Promise<string> {
+  const res = await fetch(GEMINI_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gemini API error ${res.status}: ${err}`);
+  }
+  const data = await res.json() as GeminiResponse;
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('Empty response from Gemini');
+  return text.trim();
+}
 
 export function buildCarbonSystemPrompt(profile: Partial<CarbonProfile>): string {
   const { totals = { transport: 0, energy: 0, food: 0, shopping: 0, waste: 0 }, grandTotal = 0, topCat = 'unknown', recentActivities = [] } = profile;
@@ -12,7 +37,7 @@ export function buildCarbonSystemPrompt(profile: Partial<CarbonProfile>): string
     ? `${indiaDiff.toFixed(1)} kg ABOVE`
     : `${Math.abs(indiaDiff).toFixed(1)} kg BELOW`;
 
-  const recentList = recentActivities.slice(0, 10)
+  const recentList = recentActivities.slice(0, MAX_RECENT_ACTIVITIES)
     .map(a => `  • ${a.label || a.type} — ${a.quantity} ${a.unit || 'units'} → ${a.co2} kg CO₂e`)
     .join('\n') || '  (no activities logged yet)';
 
@@ -57,10 +82,10 @@ export async function chat(
     { role: 'user', parts: [{ text: userMessage }] },
   ];
 
-  const body = {
+  const body: GeminiBody = {
     system_instruction: { parts: [{ text: systemInstruction }] },
     contents,
-    generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
+    generationConfig: { temperature: GEMINI_CHAT_TEMPERATURE, maxOutputTokens: GEMINI_CHAT_MAX_TOKENS },
     safetySettings: [
       { category: 'HARM_CATEGORY_HARASSMENT',        threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
       { category: 'HARM_CATEGORY_HATE_SPEECH',       threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
@@ -69,23 +94,7 @@ export async function chat(
     ],
   };
 
-  const res = await fetch(GEMINI_API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gemini API error ${res.status}: ${err}`);
-  }
-
-  const data = await res.json() as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('Empty response from Gemini');
-  return text.trim();
+  return callGeminiApi(apiKey, body);
 }
 
 export async function generateTips(profile: Partial<CarbonProfile>): Promise<string[]> {
@@ -101,30 +110,19 @@ export async function generateTips(profile: Partial<CarbonProfile>): Promise<str
   const systemInstruction = buildCarbonSystemPrompt(profile);
   const prompt = `Based on this user's carbon profile, provide exactly 3 short, actionable tips (one sentence each) to reduce their footprint this week. Focus on their biggest emission source. Return only a JSON array of 3 strings, no extra text.`;
 
-  const body = {
+  const body: GeminiBody = {
     system_instruction: { parts: [{ text: systemInstruction }] },
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.5, maxOutputTokens: 256, responseMimeType: 'application/json' },
+    generationConfig: { temperature: GEMINI_TIPS_TEMPERATURE, maxOutputTokens: GEMINI_TIPS_MAX_TOKENS, responseMimeType: 'application/json' },
   };
 
-  const res = await fetch(GEMINI_API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) throw new Error(`Gemini tips error ${res.status}`);
-
-  const data = await res.json() as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-  const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  const raw = await callGeminiApi(apiKey, body);
   const cleaned = raw.replace(/```json|```/g, '').trim();
 
   const tryParse = (s: string): string[] | null => {
     try {
       const parsed = JSON.parse(s) as unknown;
-      if (Array.isArray(parsed) && parsed.length > 0) return (parsed as string[]).slice(0, 3);
+      if (Array.isArray(parsed) && parsed.length > 0) return (parsed as string[]).slice(0, MAX_TIPS_SLICED);
     } catch { /* continue */ }
     return null;
   };
@@ -138,11 +136,11 @@ export async function generateTips(profile: Partial<CarbonProfile>): Promise<str
   const fromMatch = match ? tryParse(match[0]) : null;
   if (fromMatch) return fromMatch;
 
-  // 3. Model returned plain text (numbered list / bullets) — split into tip lines
+  // 3. Model returned plain text — split numbered/bulleted lines into tips
   const lines = cleaned.split('\n')
     .map(l => l.replace(/^[\s\d\-\*•·]+\.?\s*/, '').trim())
-    .filter(l => l.length >= 20);
-  if (lines.length >= 3) return lines.slice(0, 3);
+    .filter(l => l.length >= MIN_TIP_LINE_LENGTH);
+  if (lines.length >= MAX_TIPS_SLICED) return lines.slice(0, MAX_TIPS_SLICED);
 
   throw new Error('Could not extract tips array from Gemini response');
 }

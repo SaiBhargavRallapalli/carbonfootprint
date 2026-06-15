@@ -5,16 +5,30 @@ import { aggregateByCategory, topCategory } from '../services/carbonEngine';
 import * as cache from '../services/cache';
 import { chatLimiter, apiLimiter } from '../middleware/rateLimiters';
 import { escHtml } from '../utils/sanitize';
+import {
+  MS_PER_DAY, DEFAULT_DAYS, MAX_MESSAGE_LEN, MAX_HISTORY_TURNS, TIPS_CACHE_TTL_MS,
+  MAX_RECENT_ACTIVITIES,
+} from '../constants';
 import type { CarbonProfile, GeminiContent } from '../types';
 
 const router = Router();
 
+function isGeminiContent(h: unknown): h is GeminiContent {
+  if (typeof h !== 'object' || h === null) return false;
+  const item = h as Record<string, unknown>;
+  if (item.role !== 'user' && item.role !== 'model') return false;
+  if (!Array.isArray(item.parts)) return false;
+  return item.parts.every(
+    p => typeof p === 'object' && p !== null && typeof (p as Record<string, unknown>).text === 'string',
+  );
+}
+
 async function buildProfile(sessionId: string): Promise<CarbonProfile> {
-  const since = new Date(Date.now() - 30 * 86400000);
+  const since = new Date(Date.now() - DEFAULT_DAYS * MS_PER_DAY);
   const activities = await getActivitiesSince(sessionId, since);
   const { totals, grandTotal } = aggregateByCategory(activities);
   const topCat = topCategory(totals);
-  return { totals, grandTotal, topCat, recentActivities: activities.slice(0, 10) };
+  return { totals, grandTotal, topCat, recentActivities: activities.slice(0, MAX_RECENT_ACTIVITIES) };
 }
 
 router.post('/chat', chatLimiter, async (req, res) => {
@@ -31,16 +45,13 @@ router.post('/chat', chatLimiter, async (req, res) => {
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
       return res.status(400).json({ error: 'message is required' });
     }
-    if (message.length > 2000) {
-      return res.status(400).json({ error: 'message too long (max 2000 chars)' });
+    if (message.length > MAX_MESSAGE_LEN) {
+      return res.status(400).json({ error: `message too long (max ${MAX_MESSAGE_LEN} chars)` });
     }
 
     const safeMessage = escHtml(message.trim());
     const safeHistory: GeminiContent[] = Array.isArray(history)
-      ? history.slice(-10).filter((h): h is GeminiContent =>
-          typeof h === 'object' && h !== null &&
-          ((h as GeminiContent).role === 'user' || (h as GeminiContent).role === 'model') &&
-          Array.isArray((h as GeminiContent).parts))
+      ? history.slice(-MAX_HISTORY_TURNS).filter(isGeminiContent)
       : [];
     const profile = await buildProfile(escHtml(sessionId));
     const reply = await chat(safeMessage, safeHistory, profile);
@@ -67,7 +78,7 @@ router.get('/tips', apiLimiter, async (req, res) => {
     const tips = await generateTips(profile);
 
     const payload = { tips };
-    cache.set(cacheKey, payload, 300_000);
+    cache.set(cacheKey, payload, TIPS_CACHE_TTL_MS);
     return res.json(payload);
   } catch (err) {
     console.error('[tips]', err);
