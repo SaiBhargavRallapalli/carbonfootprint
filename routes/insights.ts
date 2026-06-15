@@ -5,7 +5,7 @@ import { ACTIONS, AVERAGES } from '../data/carbonData';
 import * as cache from '../services/cache';
 import { apiLimiter } from '../middleware/rateLimiters';
 import { escHtml } from '../utils/sanitize';
-import { MS_PER_DAY, DEFAULT_DAYS, MAX_HISTORY_DAYS } from '../constants';
+import { MS_PER_DAY, DEFAULT_DAYS, MAX_HISTORY_DAYS, cacheKey as ck } from '../constants';
 import type { Activity } from '../types';
 
 const router = Router();
@@ -18,9 +18,9 @@ router.get('/insights', apiLimiter, async (req, res) => {
     }
     const safeSid = escHtml(sessionId);
     const dayCount = Math.min(parseInt(days ?? String(DEFAULT_DAYS)) || DEFAULT_DAYS, MAX_HISTORY_DAYS);
-    const cacheKey = `insights:${safeSid}:${dayCount}`;
+    const insightsCacheKey = ck.insights(safeSid, dayCount);
 
-    const cached = cache.get(cacheKey);
+    const cached = cache.get(insightsCacheKey);
     if (cached) return res.set('X-Cache', 'HIT').json(cached);
 
     const since = new Date(Date.now() - dayCount * MS_PER_DAY);
@@ -39,7 +39,7 @@ router.get('/insights', apiLimiter, async (req, res) => {
       .map(([date, co2]) => ({ date, co2: parseFloat(co2.toFixed(2)) }));
 
     const payload = { periodDays: dayCount, grandTotal, totals, topCategory: top, daily, activityCount: activities.length };
-    cache.set(cacheKey, payload);
+    cache.set(insightsCacheKey, payload);
     return res.json(payload);
   } catch (err) {
     console.error('[insights]', err);
@@ -55,9 +55,9 @@ router.get('/compare', apiLimiter, async (req, res) => {
     }
     const safeSid = escHtml(sessionId);
     const dayCount = Math.min(parseInt(days ?? String(DEFAULT_DAYS)) || DEFAULT_DAYS, MAX_HISTORY_DAYS);
-    const cacheKey = `compare:${safeSid}:${dayCount}`;
+    const compareCacheKey = ck.compare(safeSid, dayCount);
 
-    const cached = cache.get(cacheKey);
+    const cached = cache.get(compareCacheKey);
     if (cached) return res.set('X-Cache', 'HIT').json(cached);
 
     const since = new Date(Date.now() - dayCount * MS_PER_DAY);
@@ -67,7 +67,7 @@ router.get('/compare', apiLimiter, async (req, res) => {
     const comparison = compareToAverages(monthlyEquivalent);
 
     const payload = { periodDays: dayCount, grandTotal, monthlyEquivalent, averages: AVERAGES, comparison };
-    cache.set(cacheKey, payload);
+    cache.set(compareCacheKey, payload);
     return res.json(payload);
   } catch (err) {
     console.error('[compare]', err);

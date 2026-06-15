@@ -7,7 +7,7 @@ import { chatLimiter, apiLimiter } from '../middleware/rateLimiters';
 import { escHtml } from '../utils/sanitize';
 import {
   MS_PER_DAY, DEFAULT_DAYS, MAX_MESSAGE_LEN, MAX_HISTORY_TURNS, TIPS_CACHE_TTL_MS,
-  MAX_RECENT_ACTIVITIES,
+  MAX_RECENT_ACTIVITIES, cacheKey as ck,
 } from '../constants';
 import type { CarbonProfile, GeminiContent } from '../types';
 
@@ -70,15 +70,15 @@ router.get('/tips', apiLimiter, async (req, res) => {
       return res.status(400).json({ error: 'sessionId query param required' });
     }
     const safeSid = escHtml(sessionId);
-    const cacheKey = `tips:${safeSid}`;
-    const cached = cache.get(cacheKey);
+    const tipsCacheKey = ck.tips(safeSid);
+    const cached = cache.get(tipsCacheKey);
     if (cached) return res.set('X-Cache', 'HIT').json(cached);
 
     const profile = await buildProfile(safeSid);
     const tips = await generateTips(profile);
 
     const payload = { tips };
-    cache.set(cacheKey, payload, TIPS_CACHE_TTL_MS);
+    cache.set(tipsCacheKey, payload, TIPS_CACHE_TTL_MS);
     return res.json(payload);
   } catch (err) {
     console.error('[tips]', err);

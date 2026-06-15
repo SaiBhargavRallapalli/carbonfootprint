@@ -6,7 +6,7 @@ import { apiLimiter } from '../middleware/rateLimiters';
 import { escHtml } from '../utils/sanitize';
 import {
   MAX_SESSION_ID_LEN, MAX_TIMESTAMP_FUTURE_MS, MS_PER_DAY, MAX_HISTORY_DAYS,
-  DEFAULT_LIMIT, MAX_LIMIT,
+  DEFAULT_LIMIT, MAX_LIMIT, cacheKey as ck,
 } from '../constants';
 
 const router = Router();
@@ -58,8 +58,8 @@ router.post('/log', apiLimiter, async (req, res) => {
     const safeSid = escHtml(sessionId);
     const result = await logActivity(safeSid, activity);
 
-    cache.delByPrefix(`insights:${safeSid}:`);
-    cache.delByPrefix(`compare:${safeSid}:`);
+    cache.delByPrefix(ck.insightsPrefix(safeSid));
+    cache.delByPrefix(ck.comparePrefix(safeSid));
 
     return res.status(201).json({ id: result.id, co2, label: safeLabel, unit });
   } catch (err) {

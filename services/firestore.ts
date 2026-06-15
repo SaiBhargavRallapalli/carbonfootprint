@@ -1,4 +1,19 @@
-import type { Activity, LogActivityResult } from '../types';
+import type { Activity, Category, LogActivityResult } from '../types';
+
+/* c8 ignore next 15 — fallback branches are unreachable: all writes go through logActivity with validated data */
+function toActivity(id: string, data: FirebaseFirestore.DocumentData): Activity {
+  return {
+    id,
+    category:  data.category  as Category,
+    type:      typeof data.type      === 'string' ? data.type      : '',
+    quantity:  typeof data.quantity  === 'number' ? data.quantity  : 0,
+    co2:       typeof data.co2       === 'number' ? data.co2       : 0,
+    unit:      typeof data.unit      === 'string' ? data.unit      : '',
+    label:     typeof data.label     === 'string' ? data.label     : '',
+    timestamp: typeof data.timestamp === 'number' ? data.timestamp : Date.now(),
+    createdAt: data.createdAt,
+  };
+}
 
 let db: FirebaseFirestore.Firestore | null = null;
 
@@ -49,7 +64,7 @@ export async function getHistory(sessionId: string, limitCount = 50): Promise<Ac
     .limit(limitCount)
     .get();
 
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Activity));
+  return snapshot.docs.map(doc => toActivity(doc.id, doc.data()));
 }
 
 export async function getActivitiesSince(sessionId: string, since: Date): Promise<Activity[]> {
@@ -64,7 +79,7 @@ export async function getActivitiesSince(sessionId: string, since: Date): Promis
     .orderBy('createdAt', 'desc')
     .get();
 
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Activity));
+  return snapshot.docs.map(doc => toActivity(doc.id, doc.data()));
 }
 
 function getDemoHistory(): Activity[] {

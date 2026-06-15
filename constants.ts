@@ -20,3 +20,11 @@ export const MAX_TIPS_SLICED          = 3;
 export const MAX_RECENT_ACTIVITIES    = 10;
 
 export const EXCELLENT_THRESHOLD_FACTOR = 0.5;
+
+export const cacheKey = {
+  insights:       (sid: string, days: number) => `insights:${sid}:${days}`,
+  compare:        (sid: string, days: number) => `compare:${sid}:${days}`,
+  tips:           (sid: string)               => `tips:${sid}`,
+  insightsPrefix: (sid: string)               => `insights:${sid}:`,
+  comparePrefix:  (sid: string)               => `compare:${sid}:`,
+};
