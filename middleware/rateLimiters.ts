@@ -10,7 +10,7 @@ export const chatLimiter = rateLimit({
 
 export const apiLimiter = rateLimit({
   windowMs: 60_000,
-  max: 100,
+  max: process.env.NODE_ENV === 'production' ? 100 : 500,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests — please slow down.' },

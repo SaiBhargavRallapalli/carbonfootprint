@@ -112,17 +112,16 @@ document.getElementById('sign-out-btn')?.addEventListener('click', async () => {
 
 // ── Init ─────────────────────────────────────────────────
 async function init() {
+  document.body.dataset.appReady = 'true'; // forms already initialized synchronously above
   try {
     const [factorsData, cfg] = await Promise.all([
       apiFetch('/emission-factors'),
       apiFetch('/config'),
     ]);
     emissionFactors = factorsData.factors;
+    document.body.dataset.emissionFactorsReady = 'true';
 
     if (cfg.demoMode) document.getElementById('demo-badge').hidden = false;
-
-    initLogForm();
-    initChatForm();
 
     if (cfg.firebaseApiKey) {
       const app = initializeApp({
@@ -611,5 +610,10 @@ function destroyChart(key) {
   }
 }
 
-// Boot
+// Initialise forms synchronously — they only need TYPE_OPTIONS (static const),
+// not emissionFactors. CO2 preview silently skips if factors aren't loaded yet.
+initLogForm();
+initChatForm();
+
+// Boot — loads async data (emission factors, Firebase config, dashboard)
 init();

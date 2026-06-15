@@ -5,7 +5,9 @@ const { test, expect } = require('@playwright/test');
 test.describe('Log Activity', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
+    await page.waitForSelector('body[data-app-ready]');
     await page.getByRole('tab', { name: /log activity/i }).click();
+    await page.waitForSelector('#panel-log:not([hidden])');
   });
 
   test('log tab becomes active on click', async ({ page }) => {
@@ -27,6 +29,7 @@ test.describe('Log Activity', () => {
   });
 
   test('CO2 preview appears after valid inputs', async ({ page }) => {
+    await page.waitForSelector('body[data-emission-factors-ready]');
     await page.selectOption('#log-category', 'transport');
     await page.selectOption('#log-type', 'petrol_car');
     await page.fill('#log-quantity', '10');

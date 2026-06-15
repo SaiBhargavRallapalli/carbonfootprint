@@ -5,6 +5,7 @@ const { test, expect } = require('@playwright/test');
 test.describe('Dashboard', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
+    await page.waitForSelector('body[data-app-ready]');
   });
 
   test('page title includes EcoSage', async ({ page }) => {

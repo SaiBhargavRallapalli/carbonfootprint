@@ -5,6 +5,7 @@ const { test, expect } = require('@playwright/test');
 test.describe('AI Assistant', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
+    await page.waitForSelector('body[data-app-ready]');
     await page.getByRole('tab', { name: /ai assistant/i }).click();
   });
 

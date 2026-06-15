@@ -45,7 +45,9 @@ body {
   display: flex;
   flex-direction: column;
 }
-img, canvas { max-width: 100%; height: auto; }
+img { max-width: 100%; height: auto; }
+canvas { max-width: 100%; }
+.chart-wrapper canvas { width: 100%; height: 100%; }
 ul { list-style: none; }
 
 /* ── Skip link ──────────────────────────────────────────── */
