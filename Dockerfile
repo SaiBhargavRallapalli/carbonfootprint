@@ -6,6 +6,7 @@ COPY package*.json tsconfig.json ./
 RUN npm ci
 
 COPY server.ts ./
+COPY constants.ts ./
 COPY data/       ./data/
 COPY middleware/ ./middleware/
 COPY routes/     ./routes/
